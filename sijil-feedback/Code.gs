@@ -23,24 +23,40 @@ const CONFIG = {
   RATE_LIMIT: { max: 6, windowSec: 600 },  // max 6 cubaan / 10 minit setiap IC
 };
 
-// Soalan penilaian skala 1-5. Ubah SEBELUM program bermula (lajur Sheet ikut senarai ini).
-const SOALAN_RATING = [
-  { id: 'q1', label: 'Isi kandungan program bermanfaat untuk saya' },
-  { id: 'q2', label: 'Penceramah / fasilitator menyampaikan dengan jelas' },
-  { id: 'q3', label: 'Pengurusan masa program' },
-  { id: 'q4', label: 'Tempat dan kemudahan (atau kualiti siaran online)' },
-  { id: 'q5', label: 'Secara keseluruhan, saya berpuas hati dengan program ini' },
+// Skala penilaian (ikut e-BORANG PENILAIAN PROGRAM - PESERTA). Susunan: rendah -> tinggi.
+const SKALA = ['AMAT TIDAK MEMUASKAN', 'TIDAK MEMUASKAN', 'KURANG MEMUASKAN', 'MEMUASKAN', 'BAIK', 'CEMERLANG'];
+
+// Bahagian soalan pilihan. Ubah SEBELUM program bermula (lajur Sheet ikut senarai ini).
+const BAHAGIAN = [
+  { tajuk: 'A - KANDUNGAN SESI/KURSUS', pilihan: SKALA, soalan: [
+    { id: 'a1', label: '1. Menepati objektif kursus' },
+    { id: 'a2', label: '2. Kandungan modul memberi impak' },
+    { id: 'a3', label: '3. Jangka masa sesi' },
+  ] },
+  { tajuk: 'B - KEBERKESANAN PENYAMPAIAN', pilihan: SKALA, soalan: [
+    { id: 'b1', label: '1. Persediaan yang rapi' },
+    { id: 'b2', label: '2. Penyampaian yang teratur dan berkesan' },
+    { id: 'b3', label: '3. Bahasa yang digunakan mudah difahami' },
+    { id: 'b4', label: '4. Metodologi latihan yang sesuai' },
+    { id: 'b5', label: '5. Berkeupayaan menarik minat peserta' },
+  ] },
+  { tajuk: 'C - FASILITATOR', pilihan: SKALA, soalan: [
+    { id: 'c1', label: '1. Membantu peserta' },
+    { id: 'c2', label: '2. Berkelayakan' },
+  ] },
+  { tajuk: 'D - KESELURUHAN KURSUS', pilihan: ['TIDAK', 'YA'], soalan: [
+    { id: 'd1', label: 'Secara keseluruhan, adakah kursus ini memenuhi jangkaan anda?' },
+  ] },
 ];
 
-// Soalan terbuka.
+// Soalan terbuka. Soalan refleksi khusus setiap program diisi dalam tab Program (lajur F).
 const SOALAN_TEKS = [
-  { id: 't1', label: 'Apa yang paling bermanfaat dari program ini?', required: false },
-  { id: 't2', label: 'Cadangan penambahbaikan', required: false },
+  { id: 't1', label: 'Sila nyatakan cadangan dan penambahbaikan keseluruhan program', required: false },
 ];
 
 const SHEET_PROGRAM = 'Program';
 const SHEET_RESPON = 'Respon';
-const PROGRAM_HEADERS = ['Kod', 'Nama Program', 'Tarikh', 'Tempat', 'Aktif'];
+const PROGRAM_HEADERS = ['Kod', 'Nama Program', 'Tarikh', 'Tempat', 'Aktif', 'Soalan Refleksi (pilihan)'];
 const BULAN = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai',
   'Ogos', 'September', 'Oktober', 'November', 'Disember'];
 
@@ -72,8 +88,9 @@ function getProgram(kod) {
     tempat: prog.tempat,
     aktif: prog.aktif,
     org: CONFIG.ORG_NAME,
-    soalanRating: SOALAN_RATING,
+    bahagian: BAHAGIAN,
     soalanTeks: SOALAN_TEKS,
+    refleksi: prog.refleksi,
   };
 }
 
@@ -86,25 +103,30 @@ function submitFeedback(data) {
 
   const nama = cleanNama_(data.nama);
   const ic = cleanIC_(data.ic);
+  const organisasi = cleanTeks_(data.organisasi, 120);
+  if (organisasi.length < 2) throw new Error('Sila isi jabatan / organisasi / pekerjaan.');
+  const telefon = cleanTelefon_(data.telefon);
   if (data.consent !== true) {
     throw new Error('Sila tandakan persetujuan penggunaan data peribadi.');
   }
   rateLimit_('sub_' + prog.kod + '_' + ic);
 
-  const rating = data.rating || {};
-  const ratings = SOALAN_RATING.map(function (q) {
-    const n = Number(rating[q.id]);
-    if (!(Number.isInteger(n) && n >= 1 && n <= 5)) {
-      throw new Error('Sila jawab semua soalan penilaian.');
-    }
-    return n;
+  const jawapanIn = data.jawapan || {};
+  const jawapan = [];
+  BAHAGIAN.forEach(function (b) {
+    b.soalan.forEach(function (q) {
+      const v = String(jawapanIn[q.id] || '');
+      if (b.pilihan.indexOf(v) < 0) throw new Error('Sila jawab semua soalan penilaian.');
+      jawapan.push(v);
+    });
   });
   const teksIn = data.teks || {};
   const teks = SOALAN_TEKS.map(function (q) {
-    const s = String(teksIn[q.id] || '').trim().slice(0, 1000);
+    const s = cleanTeks_(teksIn[q.id], 1000);
     if (q.required && !s) throw new Error('Sila jawab: ' + q.label);
     return sanitizeForSheet_(s);
   });
+  const refleksi = prog.refleksi ? sanitizeForSheet_(cleanTeks_(data.refleksi, 1000)) : '';
 
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
@@ -119,8 +141,9 @@ function submitFeedback(data) {
     }
     const id = newCertId_(prog.kod);
     getSheet_(SHEET_RESPON).appendRow(
-      [new Date(), id, prog.kod, sanitizeForSheet_(nama), formatIC_(ic)]
-        .concat(ratings, teks, ['YA'])
+      [new Date(), id, prog.kod, sanitizeForSheet_(nama), formatIC_(ic),
+        sanitizeForSheet_(prog.nama), sanitizeForSheet_(organisasi), telefon]
+        .concat(jawapan, teks, [sanitizeForSheet_(prog.refleksi), refleksi, 'YA'])
     );
     return buildCert_(prog, nama, ic, id, false);
   } finally {
@@ -155,22 +178,29 @@ function setupSheets() {
   if (!prog) {
     prog = ss.insertSheet(SHEET_PROGRAM);
     prog.getRange(1, 1, 1, PROGRAM_HEADERS.length).setValues([PROGRAM_HEADERS]).setFontWeight('bold');
-    prog.getRange(2, 1, 1, 5).setValues([['CONTOH01', 'Kuliah Contoh: Fiqh Solat Asas', new Date(), 'Masjid Contoh, Shah Alam', true]]);
+    prog.getRange(2, 1, 1, 6).setValues([['CONTOH01', 'Kuliah Contoh: Fiqh Solat Asas', new Date(), 'Masjid Contoh, Shah Alam', true,
+      'Bagaimana pengamalan ilmu solat sempurna mampu membentuk integriti dalam kehidupan sebagai seorang pekerja?']]);
     prog.getRange('E2:E200').insertCheckboxes();
     prog.getRange('C2:C200').setNumberFormat('dd/mm/yyyy');
     prog.setFrozenRows(1);
     prog.autoResizeColumns(1, 5);
+    prog.setColumnWidth(6, 400);
   }
 
   let resp = ss.getSheetByName(SHEET_RESPON);
   if (!resp) {
     resp = ss.insertSheet(SHEET_RESPON);
-    const headers = ['Timestamp', 'ID Sijil', 'Kod Program', 'Nama', 'No IC']
-      .concat(SOALAN_RATING.map(function (q) { return q.label; }))
-      .concat(SOALAN_TEKS.map(function (q) { return q.label; }))
-      .concat(['Persetujuan PDPA']);
+    // Lajur B-E (ID, Kod, Nama, IC) dibaca oleh findRespon_ - jangan ubah susunan.
+    const headers = ['Timestamp', 'ID Sijil', 'Kod Program', 'Nama', 'No IC',
+      'Nama Program', 'Jabatan / Organisasi / Pekerjaan', 'No Telefon'];
+    BAHAGIAN.forEach(function (b) {
+      b.soalan.forEach(function (q) { headers.push(b.tajuk + ' [' + q.label + ']'); });
+    });
+    SOALAN_TEKS.forEach(function (q) { headers.push(q.label); });
+    headers.push('Soalan Refleksi', 'Jawapan Refleksi', 'Persetujuan PDPA');
     resp.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
     resp.getRange('E:E').setNumberFormat('@'); // IC kekal sebagai teks
+    resp.getRange('H:H').setNumberFormat('@'); // telefon kekal sifar di depan
     resp.setFrozenRows(1);
   }
   return 'Siap. Isi tab "Program", kemudian Deploy > New deployment > Web app.';
@@ -226,7 +256,7 @@ function findProgram_(kod) {
   const sheet = getSheet_(SHEET_PROGRAM);
   const last = sheet.getLastRow();
   if (last < 2) return null;
-  const rows = sheet.getRange(2, 1, last - 1, 5).getValues();
+  const rows = sheet.getRange(2, 1, last - 1, 6).getValues();
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     if (String(r[0]).trim().toUpperCase() === kod) {
@@ -237,6 +267,7 @@ function findProgram_(kod) {
         tarikh: formatTarikh_(r[2]),
         tempat: String(r[3]).trim(),
         aktif: aktifRaw === true || /^(ya|y|true|aktif)$/i.test(String(aktifRaw).trim()),
+        refleksi: String(r[5] || '').trim(),
       };
     }
   }
@@ -317,6 +348,18 @@ function cleanNama_(nama) {
     throw new Error('Nama hanya boleh mengandungi huruf, ruang dan simbol . \' @ / - ( )');
   }
   return s;
+}
+
+function cleanTeks_(v, max) {
+  return String(v == null ? '' : v).trim().slice(0, max);
+}
+
+function cleanTelefon_(v) {
+  let d = String(v || '').replace(/[\s()+-]/g, '');
+  if (!d) return '';
+  if (d.indexOf('60') === 0) d = '0' + d.slice(2);
+  if (!/^0\d{8,10}$/.test(d)) throw new Error('No. telefon tidak sah. Contoh: 012-3456789');
+  return d;
 }
 
 function normNama_(nama) {

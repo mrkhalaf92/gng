@@ -31,14 +31,16 @@
     .q { padding: 14px 0; border-bottom: 1px solid var(--line); }
     .q:last-child { border-bottom: 0; }
     .q p { margin: 0 0 10px; font-weight: 700; }
-    .scale { display: flex; gap: 8px; }
-    .scale label { flex: 1; }
+    .sec { margin: 0 0 4px; color: var(--green); font-size: 15px; letter-spacing: .04em; }
+    .scale { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .scale.two { grid-template-columns: 1fr 1fr; }
+    .scale label { position: relative; }
     .scale input { position: absolute; opacity: 0; }
-    .scale span { display: block; text-align: center; padding: 10px 0; border: 1px solid #cfc8b8;
-      border-radius: 8px; cursor: pointer; font-weight: 700; }
+    .scale span { display: flex; align-items: center; justify-content: center; min-height: 44px; height: 100%;
+      text-align: center; padding: 6px 4px; border: 1px solid #cfc8b8; border-radius: 8px; cursor: pointer;
+      font-weight: 700; font-size: 12px; line-height: 1.25; }
     .scale input:checked + span { background: var(--green); color: #fff; border-color: var(--green); }
     .scale input:focus-visible + span { outline: 2px solid var(--gold); }
-    .legend { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; margin-top: 4px; }
     .consent { background: #faf7f0; border: 1px solid var(--line); border-radius: 8px; padding: 14px; font-size: 14px; }
     .consent ul { margin: 6px 0; padding-left: 20px; }
     .check { display: flex; gap: 10px; align-items: flex-start; margin-top: 10px; font-weight: 700; }
@@ -54,7 +56,7 @@
     .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .btns button { margin-top: 12px; }
     .center { text-align: center; }
-    @media (max-width: 480px) { .card { padding: 18px; } .btns { grid-template-columns: 1fr; } }
+    @media (max-width: 480px) { .card { padding: 18px; } .btns { grid-template-columns: 1fr; } .scale { grid-template-columns: 1fr 1fr; } }
   </style>
 </head>
 <body data-kod="<?= kod ?>">
@@ -77,12 +79,13 @@
         <input type="text" id="nama" maxlength="80" autocomplete="name" required>
         <label class="f" for="ic">No. Kad Pengenalan <span class="hint">(cth: 900101-14-5678)</span></label>
         <input type="text" id="ic" maxlength="14" inputmode="numeric" required>
+        <label class="f" for="organisasi">Jabatan / Organisasi / Pekerjaan</label>
+        <input type="text" id="organisasi" maxlength="120" autocomplete="organization" required>
+        <label class="f" for="telefon">No. Telefon <span class="hint">(pilihan)</span></label>
+        <input type="text" id="telefon" maxlength="15" inputmode="tel" autocomplete="tel">
       </div>
 
-      <div class="card">
-        <p class="hint" style="margin:0">Skala: 1 = Sangat tidak setuju, 5 = Sangat setuju</p>
-        <div id="ratingBox"></div>
-      </div>
+      <div id="ratingBox"></div>
 
       <div class="card" id="teksBox"></div>
 
@@ -90,7 +93,7 @@
         <div class="consent">
           <strong>Notis Privasi (PDPA 2010)</strong>
           <ul>
-            <li>Data dikumpul: nama, No. IC dan jawapan feedback.</li>
+            <li>Data dikumpul: nama, No. IC, jabatan/organisasi, No. telefon (jika diisi) dan jawapan penilaian.</li>
             <li>Tujuan: mengeluarkan sijil penyertaan, pengesahan sijil, dan menambah baik program.</li>
             <li>Akses: urusetia program sahaja. Data tidak dijual atau dikongsi dengan pihak ketiga.</li>
             <li>Tempoh simpanan: <span id="retention">24 bulan</span>, kemudian dipadam.</li>
@@ -164,30 +167,35 @@
     $('pNama').textContent = p.nama;
     $('pMeta').textContent = [p.tarikh, p.tempat].filter(Boolean).join(' · ');
 
+    // Pilihan dipapar dari tinggi ke rendah (CEMERLANG dahulu).
     const rb = $('ratingBox');
-    p.soalanRating.forEach((q, i) => {
-      const div = document.createElement('div');
-      div.className = 'q';
-      const t = document.createElement('p');
-      t.textContent = (i + 1) + '. ' + q.label;
-      div.appendChild(t);
-      const sc = document.createElement('div');
-      sc.className = 'scale';
-      for (let n = 1; n <= 5; n++) {
-        const l = document.createElement('label');
-        const inp = document.createElement('input');
-        inp.type = 'radio'; inp.name = q.id; inp.value = n;
-        const s = document.createElement('span');
-        s.textContent = n;
-        l.append(inp, s);
-        sc.appendChild(l);
-      }
-      div.appendChild(sc);
-      const lg = document.createElement('div');
-      lg.className = 'legend';
-      lg.innerHTML = '<span>Sangat tidak setuju</span><span>Sangat setuju</span>';
-      div.appendChild(lg);
-      rb.appendChild(div);
+    p.bahagian.forEach((b) => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      const h = document.createElement('h2');
+      h.className = 'sec'; h.textContent = b.tajuk;
+      card.appendChild(h);
+      b.soalan.forEach((q) => {
+        const div = document.createElement('div');
+        div.className = 'q';
+        const t = document.createElement('p');
+        t.textContent = q.label;
+        div.appendChild(t);
+        const sc = document.createElement('div');
+        sc.className = 'scale' + (b.pilihan.length <= 2 ? ' two' : '');
+        b.pilihan.slice().reverse().forEach((opt) => {
+          const l = document.createElement('label');
+          const inp = document.createElement('input');
+          inp.type = 'radio'; inp.name = q.id; inp.value = opt;
+          const s = document.createElement('span');
+          s.textContent = opt;
+          l.append(inp, s);
+          sc.appendChild(l);
+        });
+        div.appendChild(sc);
+        card.appendChild(div);
+      });
+      rb.appendChild(card);
     });
 
     const tb = $('teksBox');
@@ -199,6 +207,14 @@
       ta.id = q.id; ta.maxLength = 1000;
       tb.append(l, ta);
     });
+    if (p.refleksi) {
+      const l = document.createElement('label');
+      l.className = 'f'; l.htmlFor = 'refleksi';
+      l.textContent = p.refleksi;
+      const ta = document.createElement('textarea');
+      ta.id = 'refleksi'; ta.maxLength = 1000;
+      tb.append(l, ta);
+    }
   }
 
   function setView(v) {
@@ -233,16 +249,17 @@
     ev.preventDefault();
     const err = $('formErr');
     show('formErr', false);
-    const rating = {}; let missing = 0;
-    PROG.soalanRating.forEach((q) => {
+    const jawapan = {}; let missing = 0;
+    PROG.bahagian.forEach((b) => b.soalan.forEach((q) => {
       const c = document.querySelector('input[name="' + q.id + '"]:checked');
-      if (c) rating[q.id] = Number(c.value); else missing++;
-    });
+      if (c) jawapan[q.id] = c.value; else missing++;
+    }));
     const teks = {};
     PROG.soalanTeks.forEach((q) => { teks[q.id] = $(q.id).value; });
     const fail = (m) => { err.textContent = m; show('formErr', true); };
     if ($('nama').value.trim().length < 3) return fail('Sila isi nama penuh.');
     if ($('ic').value.replace(/\D/g, '').length !== 12) return fail('No. IC mesti 12 digit.');
+    if ($('organisasi').value.trim().length < 2) return fail('Sila isi jabatan / organisasi / pekerjaan.');
     if (missing) return fail('Sila jawab semua soalan penilaian (' + missing + ' belum dijawab).');
     if (!$('consent').checked) return fail('Sila tandakan persetujuan Notis Privasi.');
 
@@ -251,7 +268,8 @@
     try {
       const cert = await call('submitFeedback', {
         kod: KOD, nama: $('nama').value, ic: $('ic').value,
-        rating, teks, consent: true,
+        organisasi: $('organisasi').value, telefon: $('telefon').value,
+        jawapan, teks, refleksi: PROG.refleksi ? $('refleksi').value : '', consent: true,
       });
       await showCert(cert);
     } catch (e) {
