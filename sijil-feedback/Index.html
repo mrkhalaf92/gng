@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+  <style>
+    :root {
+      --green: #1f4d3a; --gold: #b8913a; --bg: #f4f1ea; --card: #ffffff;
+      --text: #222; --muted: #666; --line: #e2ddd2; --err: #b3261e;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+      font-family: Lato, system-ui, sans-serif; font-size: 16px; line-height: 1.5; }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+    .card { background: var(--card); border-radius: 12px; padding: 24px;
+      border: 1px solid var(--line); margin-bottom: 16px; }
+    .head { border-top: 8px solid var(--green); }
+    .org { color: var(--gold); font-weight: 700; letter-spacing: .12em; font-size: 13px; margin: 0; }
+    h1 { font-family: 'Playfair Display', serif; color: var(--green); font-size: 26px; margin: 4px 0 8px; }
+    .meta { color: var(--muted); margin: 0; }
+    label.f { display: block; font-weight: 700; margin: 16px 0 6px; }
+    .hint { color: var(--muted); font-size: 14px; font-weight: 400; }
+    input[type=text], textarea { width: 100%; padding: 12px; font: inherit;
+      border: 1px solid #cfc8b8; border-radius: 8px; background: #fff; }
+    input[type=text]:focus, textarea:focus { outline: 2px solid var(--green); border-color: transparent; }
+    textarea { min-height: 90px; resize: vertical; }
+    .q { padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .q:last-child { border-bottom: 0; }
+    .q p { margin: 0 0 10px; font-weight: 700; }
+    .scale { display: flex; gap: 8px; }
+    .scale label { flex: 1; }
+    .scale input { position: absolute; opacity: 0; }
+    .scale span { display: block; text-align: center; padding: 10px 0; border: 1px solid #cfc8b8;
+      border-radius: 8px; cursor: pointer; font-weight: 700; }
+    .scale input:checked + span { background: var(--green); color: #fff; border-color: var(--green); }
+    .scale input:focus-visible + span { outline: 2px solid var(--gold); }
+    .legend { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .consent { background: #faf7f0; border: 1px solid var(--line); border-radius: 8px; padding: 14px; font-size: 14px; }
+    .consent ul { margin: 6px 0; padding-left: 20px; }
+    .check { display: flex; gap: 10px; align-items: flex-start; margin-top: 10px; font-weight: 700; }
+    .check input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+    button { font: inherit; font-weight: 700; padding: 14px 20px; border-radius: 8px; border: 0;
+      background: var(--green); color: #fff; cursor: pointer; width: 100%; margin-top: 16px; }
+    button.alt { background: #fff; color: var(--green); border: 1px solid var(--green); }
+    button:disabled { opacity: .6; cursor: wait; }
+    .link { background: none; color: var(--green); text-decoration: underline; padding: 0; width: auto; margin: 0; font-weight: 400; }
+    .error { color: var(--err); font-weight: 700; margin-top: 12px; }
+    .hidden { display: none !important; }
+    #preview { width: 100%; border-radius: 6px; border: 1px solid var(--line); display: block; }
+    .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .btns button { margin-top: 12px; }
+    .center { text-align: center; }
+    @media (max-width: 480px) { .card { padding: 18px; } .btns { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body data-kod="<?= kod ?>">
+<div class="wrap">
+
+  <div id="vLoading" class="card center">Memuatkan borang...</div>
+  <div id="vFatal" class="card hidden"><p class="error" id="fatalMsg"></p></div>
+
+  <div id="vMain" class="hidden">
+    <div class="card head">
+      <p class="org" id="pOrg"></p>
+      <h1 id="pNama"></h1>
+      <p class="meta" id="pMeta"></p>
+    </div>
+
+    <!-- Borang feedback -->
+    <form id="fFeedback" class="hidden" novalidate>
+      <div class="card">
+        <label class="f" for="nama">Nama penuh <span class="hint">(seperti dalam IC, akan dicetak pada sijil)</span></label>
+        <input type="text" id="nama" maxlength="80" autocomplete="name" required>
+        <label class="f" for="ic">No. Kad Pengenalan <span class="hint">(cth: 900101-14-5678)</span></label>
+        <input type="text" id="ic" maxlength="14" inputmode="numeric" required>
+      </div>
+
+      <div class="card">
+        <p class="hint" style="margin:0">Skala: 1 = Sangat tidak setuju, 5 = Sangat setuju</p>
+        <div id="ratingBox"></div>
+      </div>
+
+      <div class="card" id="teksBox"></div>
+
+      <div class="card">
+        <div class="consent">
+          <strong>Notis Privasi (PDPA 2010)</strong>
+          <ul>
+            <li>Data dikumpul: nama, No. IC dan jawapan feedback.</li>
+            <li>Tujuan: mengeluarkan sijil penyertaan, pengesahan sijil, dan menambah baik program.</li>
+            <li>Akses: urusetia program sahaja. Data tidak dijual atau dikongsi dengan pihak ketiga.</li>
+            <li>Tempoh simpanan: <span id="retention">24 bulan</span>, kemudian dipadam.</li>
+          </ul>
+          <label class="check"><input type="checkbox" id="consent"> Saya bersetuju data saya digunakan untuk tujuan di atas.</label>
+        </div>
+        <p class="error hidden" id="formErr"></p>
+        <button type="submit" id="btnSubmit">Hantar & Dapatkan Sijil</button>
+        <p class="center" style="margin:14px 0 0"><button type="button" class="link" id="toReissue">Dah isi sebelum ni? Muat turun semula sijil</button></p>
+      </div>
+    </form>
+
+    <!-- Muat turun semula -->
+    <form id="fReissue" class="card hidden" novalidate>
+      <p id="closedMsg" class="hidden" style="margin-top:0"><strong>Borang feedback untuk program ini telah ditutup.</strong> Jika anda sudah isi sebelum ini, sijil masih boleh dimuat turun.</p>
+      <p style="margin-top:0">Masukkan nama dan No. IC yang sama seperti semasa isi borang.</p>
+      <label class="f" for="nama2">Nama penuh</label>
+      <input type="text" id="nama2" maxlength="80" autocomplete="name">
+      <label class="f" for="ic2">No. Kad Pengenalan</label>
+      <input type="text" id="ic2" maxlength="14" inputmode="numeric">
+      <p class="error hidden" id="reErr"></p>
+      <button type="submit" id="btnReissue">Dapatkan Sijil</button>
+      <p class="center" style="margin:14px 0 0"><button type="button" class="link" id="toForm">Kembali ke borang feedback</button></p>
+    </form>
+
+    <!-- Sijil -->
+    <div id="vDone" class="card hidden">
+      <h1 style="margin-top:0" id="doneTitle">Terima kasih</h1>
+      <p class="meta" id="doneMsg"></p>
+      <img id="preview" alt="Sijil penyertaan">
+      <div class="btns">
+        <button type="button" id="dlPdf">Muat Turun PDF</button>
+        <button type="button" class="alt" id="dlPng">Muat Turun Gambar (PNG)</button>
+      </div>
+      <p class="hint center">Kalau butang tak berfungsi di telefon, tekan lama pada gambar sijil dan pilih "Simpan gambar".</p>
+    </div>
+  </div>
+</div>
+
+<canvas id="cv" width="2339" height="1654" class="hidden"></canvas>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const KOD = document.body.dataset.kod;
+  let PROG = null;
+  let CERT = null;
+
+  function call(fn, arg) {
+    return new Promise((resolve, reject) => {
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](arg);
+    });
+  }
+  function errMsg(e) {
+    return String((e && e.message) || e || 'Ralat tidak diketahui').replace(/^Error:\s*/, '');
+  }
+  function show(id, on) { $(id).classList.toggle('hidden', !on); }
+
+  // Auto-format IC: 900101145678 -> 900101-14-5678
+  function bindIC(input) {
+    input.addEventListener('input', () => {
+      const d = input.value.replace(/\D/g, '').slice(0, 12);
+      input.value = d.length > 8 ? d.slice(0, 6) + '-' + d.slice(6, 8) + '-' + d.slice(8)
+        : d.length > 6 ? d.slice(0, 6) + '-' + d.slice(6) : d;
+    });
+  }
+  bindIC($('ic')); bindIC($('ic2'));
+
+  function buildForm(p) {
+    $('pOrg').textContent = p.org;
+    $('pNama').textContent = p.nama;
+    $('pMeta').textContent = [p.tarikh, p.tempat].filter(Boolean).join(' · ');
+
+    const rb = $('ratingBox');
+    p.soalanRating.forEach((q, i) => {
+      const div = document.createElement('div');
+      div.className = 'q';
+      const t = document.createElement('p');
+      t.textContent = (i + 1) + '. ' + q.label;
+      div.appendChild(t);
+      const sc = document.createElement('div');
+      sc.className = 'scale';
+      for (let n = 1; n <= 5; n++) {
+        const l = document.createElement('label');
+        const inp = document.createElement('input');
+        inp.type = 'radio'; inp.name = q.id; inp.value = n;
+        const s = document.createElement('span');
+        s.textContent = n;
+        l.append(inp, s);
+        sc.appendChild(l);
+      }
+      div.appendChild(sc);
+      const lg = document.createElement('div');
+      lg.className = 'legend';
+      lg.innerHTML = '<span>Sangat tidak setuju</span><span>Sangat setuju</span>';
+      div.appendChild(lg);
+      rb.appendChild(div);
+    });
+
+    const tb = $('teksBox');
+    p.soalanTeks.forEach((q) => {
+      const l = document.createElement('label');
+      l.className = 'f'; l.htmlFor = q.id;
+      l.textContent = q.label + (q.required ? '' : ' (pilihan)');
+      const ta = document.createElement('textarea');
+      ta.id = q.id; ta.maxLength = 1000;
+      tb.append(l, ta);
+    });
+  }
+
+  function setView(v) {
+    show('fFeedback', v === 'form');
+    show('fReissue', v === 'reissue');
+    show('vDone', v === 'done');
+    window.scrollTo(0, 0);
+  }
+
+  async function init() {
+    if (!KOD) {
+      $('fatalMsg').textContent = 'Link tidak lengkap. Sila guna link borang yang diberi oleh urusetia.';
+      show('vLoading', false); show('vFatal', true);
+      return;
+    }
+    try {
+      PROG = await call('getProgram', KOD);
+      buildForm(PROG);
+      show('vLoading', false); show('vMain', true);
+      if (PROG.aktif) setView('form');
+      else { show('closedMsg', true); show('toForm', false); setView('reissue'); }
+    } catch (e) {
+      $('fatalMsg').textContent = errMsg(e);
+      show('vLoading', false); show('vFatal', true);
+    }
+  }
+
+  $('toReissue').onclick = () => setView('reissue');
+  $('toForm').onclick = () => setView('form');
+
+  $('fFeedback').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const err = $('formErr');
+    show('formErr', false);
+    const rating = {}; let missing = 0;
+    PROG.soalanRating.forEach((q) => {
+      const c = document.querySelector('input[name="' + q.id + '"]:checked');
+      if (c) rating[q.id] = Number(c.value); else missing++;
+    });
+    const teks = {};
+    PROG.soalanTeks.forEach((q) => { teks[q.id] = $(q.id).value; });
+    const fail = (m) => { err.textContent = m; show('formErr', true); };
+    if ($('nama').value.trim().length < 3) return fail('Sila isi nama penuh.');
+    if ($('ic').value.replace(/\D/g, '').length !== 12) return fail('No. IC mesti 12 digit.');
+    if (missing) return fail('Sila jawab semua soalan penilaian (' + missing + ' belum dijawab).');
+    if (!$('consent').checked) return fail('Sila tandakan persetujuan Notis Privasi.');
+
+    const btn = $('btnSubmit');
+    btn.disabled = true; btn.textContent = 'Menghantar...';
+    try {
+      const cert = await call('submitFeedback', {
+        kod: KOD, nama: $('nama').value, ic: $('ic').value,
+        rating, teks, consent: true,
+      });
+      await showCert(cert);
+    } catch (e) {
+      fail(errMsg(e));
+    } finally {
+      btn.disabled = false; btn.textContent = 'Hantar & Dapatkan Sijil';
+    }
+  });
+
+  $('fReissue').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    show('reErr', false);
+    const btn = $('btnReissue');
+    btn.disabled = true; btn.textContent = 'Mencari rekod...';
+    try {
+      const cert = await call('ambilSijil', { kod: KOD, nama: $('nama2').value, ic: $('ic2').value });
+      await showCert(cert);
+    } catch (e) {
+      $('reErr').textContent = errMsg(e); show('reErr', true);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Dapatkan Sijil';
+    }
+  });
+
+  async function showCert(cert) {
+    CERT = cert;
+    const cv = $('cv');
+    await drawCert(cv, cert);
+    $('preview').src = cv.toDataURL('image/jpeg', 0.9);
+    $('doneTitle').textContent = cert.reissued ? 'Sijil anda' : 'Terima kasih atas maklum balas anda';
+    $('doneMsg').textContent = cert.reissued
+      ? 'Rekod anda dijumpai. Sijil dikeluarkan semula.'
+      : 'Feedback anda telah diterima. Ini sijil penyertaan anda.';
+    setView('done');
+  }
+
+  function fileBase() { return 'Sijil-' + CERT.id; }
+
+  $('dlPdf').onclick = () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    doc.addImage($('cv').toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 297, 210);
+    doc.save(fileBase() + '.pdf');
+  };
+  $('dlPng').onclick = () => {
+    $('cv').toBlob((blob) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = fileBase() + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }, 'image/png');
+  };
+
+  // ====== Lukis sijil (A4 landscape, ~200 dpi) ======
+  const C = { green: '#1f4d3a', gold: '#b8913a', ink: '#1c1c1c', muted: '#555', bg: '#fbf8f1' };
+  const SERIF = '"Playfair Display", Georgia, serif';
+  const SANS = 'Lato, Arial, sans-serif';
+
+  async function drawCert(cv, c) {
+    try {
+      await Promise.all([
+        document.fonts.load('700 100px "Playfair Display"'),
+        document.fonts.load('400 40px Lato'),
+        document.fonts.load('italic 400 40px Lato'),
+        document.fonts.load('700 40px Lato'),
+      ]);
+    } catch (e) { /* guna font fallback */ }
+
+    const W = cv.width, H = cv.height, cx = W / 2;
+    const g = cv.getContext('2d');
+    g.fillStyle = C.bg; g.fillRect(0, 0, W, H);
+
+    // Bingkai
+    g.strokeStyle = C.green; g.lineWidth = 22; g.strokeRect(60, 60, W - 120, H - 120);
+    g.strokeStyle = C.gold; g.lineWidth = 4; g.strokeRect(100, 100, W - 200, H - 200);
+    [[100, 100], [W - 100, 100], [100, H - 100], [W - 100, H - 100]].forEach(([x, y]) => diamond(g, x, y, 22, C.gold));
+
+    g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+
+    text(g, spaced(c.org), cx, 270, '700 42px ' + SANS, C.gold);
+    text(g, c.title, cx, 420, '700 118px ' + SERIF, C.green);
+    divider(g, cx, 490, 520);
+
+    text(g, 'Dengan ini disahkan bahawa', cx, 610, 'italic 400 46px ' + SANS, C.muted);
+    fitText(g, c.nama, cx, 735, W - 520, 100, 54, '700 {s}px ' + SERIF, C.ink);
+    text(g, 'No. K/P: ' + c.ic, cx, 815, '400 42px ' + SANS, C.ink);
+    text(g, 'telah menyertai', cx, 915, 'italic 400 46px ' + SANS, C.muted);
+
+    g.font = '700 70px ' + SERIF;
+    const lines = wrap(g, c.program, W - 620).slice(0, 2);
+    let y = 1015;
+    lines.forEach((ln) => { fitText(g, ln, cx, y, W - 560, 70, 44, '700 {s}px ' + SERIF, C.green); y += 88; });
+    const sub = [c.tarikh ? 'pada ' + c.tarikh : '', c.tempat ? 'di ' + c.tempat : ''].filter(Boolean).join(' ');
+    if (sub) fitText(g, sub, cx, y + 5, W - 620, 42, 28, '400 {s}px ' + SANS, C.ink);
+
+    // Tandatangan (kiri)
+    const sx = 560;
+    g.strokeStyle = C.ink; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(sx - 260, 1370); g.lineTo(sx + 260, 1370); g.stroke();
+    fitText(g, c.signName, sx, 1420, 560, 36, 24, '700 {s}px ' + SANS, C.ink);
+    text(g, c.signTitle, sx, 1465, '400 32px ' + SANS, C.muted);
+    text(g, c.org, sx, 1505, '400 28px ' + SANS, C.muted);
+
+    // QR + ID (kanan)
+    const qx = W - 560, qs = 200, qy = 1245;
+    drawQR(g, c.verifyUrl, qx - qs / 2, qy, qs);
+    text(g, 'ID: ' + c.id, qx, qy + qs + 46, '700 26px ' + SANS, C.ink);
+    text(g, 'Imbas untuk sahkan sijil', qx, qy + qs + 82, '400 24px ' + SANS, C.muted);
+  }
+
+  function text(g, s, x, y, font, color) { g.font = font; g.fillStyle = color; g.fillText(s, x, y); }
+  function fitText(g, s, x, y, maxW, start, min, fontTpl, color) {
+    let size = start;
+    do { g.font = fontTpl.replace('{s}', size); size -= 2; } while (g.measureText(s).width > maxW && size >= min);
+    g.fillStyle = color; g.fillText(s, x, y, maxW);
+  }
+  function spaced(s) { return String(s).split('').join(' '); }
+  function wrap(g, s, maxW) {
+    const words = String(s).split(/\s+/); const out = []; let cur = '';
+    words.forEach((w) => {
+      const t = cur ? cur + ' ' + w : w;
+      if (g.measureText(t).width > maxW && cur) { out.push(cur); cur = w; } else cur = t;
+    });
+    if (cur) out.push(cur);
+    if (out.length > 2) out[1] = out.slice(1).join(' ');
+    return out;
+  }
+  function diamond(g, x, y, r, color) {
+    g.fillStyle = color; g.beginPath();
+    g.moveTo(x, y - r); g.lineTo(x + r, y); g.lineTo(x, y + r); g.lineTo(x - r, y); g.closePath(); g.fill();
+  }
+  function divider(g, cx, y, w) {
+    g.strokeStyle = C.gold; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(cx - w / 2, y); g.lineTo(cx - 30, y); g.moveTo(cx + 30, y); g.lineTo(cx + w / 2, y); g.stroke();
+    diamond(g, cx, y, 14, C.gold);
+  }
+  function drawQR(g, url, x, y, size) {
+    if (typeof qrcode !== 'function' || !url) return;
+    const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
+    const n = qr.getModuleCount(), cell = size / n;
+    g.fillStyle = '#fff'; g.fillRect(x - 12, y - 12, size + 24, size + 24);
+    g.fillStyle = C.ink;
+    for (let r = 0; r < n; r++) for (let col = 0; col < n; col++) {
+      if (qr.isDark(r, col)) g.fillRect(x + col * cell, y + r * cell, Math.ceil(cell), Math.ceil(cell));
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
