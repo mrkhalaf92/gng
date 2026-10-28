@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="utf-8">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Lato:ital,wght@0,400;0,700;1,400&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   <style>
@@ -310,8 +310,10 @@
 
   $('dlPdf').onclick = () => {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    doc.addImage($('cv').toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 297, 210);
+    const cv = $('cv');
+    const portrait = cv.height > cv.width;
+    const doc = new jsPDF({ orientation: portrait ? 'portrait' : 'landscape', unit: 'mm', format: 'a4' });
+    doc.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, portrait ? 210 : 297, portrait ? 297 : 210);
     doc.save(fileBase() + '.pdf');
   };
   $('dlPng').onclick = () => {
@@ -329,7 +331,43 @@
   const SERIF = '"Playfair Display", Georgia, serif';
   const SANS = 'Lato, Arial, sans-serif';
 
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Template sijil gagal dimuatkan.'));
+      img.src = src;
+    });
+  }
+
+  // Template Canva: gambar penuh dari Drive, sistem cetak nama + IC + QR sahaja.
+  async function drawTemplateCert(cv, c) {
+    const L = c.layout;
+    try {
+      await document.fonts.load(L.weight + ' 60px ' + L.font);
+      await document.fonts.load('700 20px Lato');
+    } catch (e) { /* guna font fallback */ }
+    const img = await loadImage(c.template);
+    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    const W = cv.width, H = cv.height, cx = W / 2;
+    const g = cv.getContext('2d');
+    g.drawImage(img, 0, 0, W, H);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    const sz = (k) => Math.round(L[k].size * H);
+    fitText(g, c.nama, cx, L.nama.y * H, L.nama.maxWidth * W, sz('nama'), Math.round(sz('nama') * 0.6),
+      L.weight + ' {s}px ' + L.font, L.color);
+    text(g, c.ic, cx, L.ic.y * H, L.weight + ' ' + sz('ic') + 'px ' + L.font, L.color);
+    if (L.qr) {
+      const qs = Math.round(L.qr.size * H);
+      const qx = L.qr.x * W, qy = L.qr.y * H;
+      drawQR(g, c.verifyUrl, qx - qs / 2, qy - qs / 2, qs, Math.round(qs * 0.05));
+      text(g, c.id, qx, qy + qs / 2 + qs * 0.16, '700 ' + Math.round(qs * 0.1) + 'px ' + SANS, L.color);
+    }
+  }
+
   async function drawCert(cv, c) {
+    if (c.template) return drawTemplateCert(cv, c);
+    cv.width = 2339; cv.height = 1654;
     try {
       await Promise.all([
         document.fonts.load('700 100px "Playfair Display"'),
@@ -407,11 +445,12 @@
     g.beginPath(); g.moveTo(cx - w / 2, y); g.lineTo(cx - 30, y); g.moveTo(cx + 30, y); g.lineTo(cx + w / 2, y); g.stroke();
     diamond(g, cx, y, 14, C.gold);
   }
-  function drawQR(g, url, x, y, size) {
+  function drawQR(g, url, x, y, size, pad) {
+    if (pad == null) pad = 12;
     if (typeof qrcode !== 'function' || !url) return;
     const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
     const n = qr.getModuleCount(), cell = size / n;
-    g.fillStyle = '#fff'; g.fillRect(x - 12, y - 12, size + 24, size + 24);
+    g.fillStyle = '#fff'; g.fillRect(x - pad, y - pad, size + pad * 2, size + pad * 2);
     g.fillStyle = C.ink;
     for (let r = 0; r < n; r++) for (let col = 0; col < n; col++) {
       if (qr.isDark(r, col)) g.fillRect(x + col * cell, y + r * cell, Math.ceil(cell), Math.ceil(cell));

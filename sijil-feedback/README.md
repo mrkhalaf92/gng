@@ -36,14 +36,30 @@ Bila kod diubah selepas ini: **Deploy > Manage deployments > Edit > Version: New
 
 Tambah satu baris dalam tab Program:
 
-| Kod | Nama Program | Tarikh | Tempat | Aktif | Soalan Refleksi (pilihan) |
-|---|---|---|---|---|---|
-| KM1126 | Kuliah Maghrib: Fiqh Puasa | 15/11/2026 | Masjid Al-Hidayah | ☑ | Bagaimana puasa membentuk disiplin anda di tempat kerja? |
+| Kod | Nama Program | Tarikh | Tempat | Aktif | Soalan Refleksi (pilihan) | Template Sijil (pilihan) |
+|---|---|---|---|---|---|---|
+| MBJB1026 | Bengkel Pemerkasaan Integriti melalui Penghayatan Solat Sempurna | 28 & 29 Oktober 2026 | Amari Hotel, Johor Bahru | ☑ | Bagaimana pengamalan ilmu solat ... | https://drive.google.com/file/d/.../view |
 
 - Kod: huruf, nombor, `-` atau `_` sahaja, maksimum 30 aksara.
 - Tarikh boleh dalam format tarikh (akan dicetak "15 November 2026") atau teks bebas seperti "15-16 November 2026".
 - Soalan Refleksi: soalan terbuka khusus untuk program tu. Biarkan kosong kalau tak perlu.
+- Template Sijil: link gambar sijil dari Canva yang disimpan dalam Google Drive (lihat bahagian bawah). Kalau kosong, sistem guna design sijil default.
 - Nyahtanda **Aktif** untuk tutup borang. Peserta yang dah isi masih boleh muat turun sijil.
+
+## Guna design Canva sebagai sijil
+
+Sistem cetak **nama, IC dan QR pengesahan** sahaja. Benda lain (logo, nama program, anjuran, tarikh, tempat, tandatangan) datang dari design Canva.
+
+1. Dalam Canva, buat salinan design sijil program (contoh: "Sijil MBJB Okt 2026").
+2. Edit nama program, anjuran, tarikh dan tempat ikut program baru.
+3. **Padam teks nama dan IC contoh.** Biarkan ruang tu kosong.
+4. Share > Download > **JPG**, kualiti tinggi. Saiz A4 portrait macam design sekarang.
+5. Upload JPG tu ke Google Drive akaun yang sama dengan pemilik Apps Script. Tak perlu share kepada orang lain.
+6. Klik kanan fail > Share > Copy link, dan paste dalam lajur **Template Sijil** tab Program.
+
+Posisi nama dan IC ditetapkan dalam `CONFIG.TEMPLATE_LAYOUT` (`Code.gs`). Nilai sekarang diukur dari design MBJB Okt 2026: nama di 36% tinggi muka surat, IC di 40%, dan QR di bawah sebelah kiri tandatangan. Selagi design baru kekalkan susunan yang sama, tak perlu ubah apa-apa. Kalau susunan berubah, ubah nilai `y` (0 = atas, 1 = bawah) dan test dengan satu respon.
+
+Font nama dan IC ialah **Cinzel** (Google Fonts), yang paling hampir dengan font dalam design Canva tu. Kalau nak sama 100%, tukar font teks nama dalam Canva kepada Cinzel juga.
 
 ## Ubah soalan
 

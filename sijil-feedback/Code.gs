@@ -21,6 +21,16 @@ const CONFIG = {
   ID_PREFIX: 'GNG',
   RETENTION_MONTHS: 24,                    // data respon dipadam selepas tempoh ini
   RATE_LIMIT: { max: 6, windowSec: 600 },  // max 6 cubaan / 10 minit setiap IC
+  // Posisi teks atas template Canva (lajur G tab Program), dalam pecahan lebar/tinggi gambar.
+  // Nilai asal diukur dari design "Sijil MBJB Okt 2026" (A4 portrait).
+  TEMPLATE_LAYOUT: {
+    font: 'Cinzel, Georgia, serif',
+    weight: 600,
+    color: '#171501',
+    nama: { y: 0.3614, size: 0.0327, maxWidth: 0.78 },   // y = tengah baris
+    ic: { y: 0.4003, size: 0.0327 },
+    qr: { x: 0.40, y: 0.855, size: 0.07 },                // tengah QR; set null untuk buang QR
+  },
 };
 
 // Skala penilaian (ikut e-BORANG PENILAIAN PROGRAM - PESERTA). Susunan: rendah -> tinggi.
@@ -56,7 +66,8 @@ const SOALAN_TEKS = [
 
 const SHEET_PROGRAM = 'Program';
 const SHEET_RESPON = 'Respon';
-const PROGRAM_HEADERS = ['Kod', 'Nama Program', 'Tarikh', 'Tempat', 'Aktif', 'Soalan Refleksi (pilihan)'];
+const PROGRAM_HEADERS = ['Kod', 'Nama Program', 'Tarikh', 'Tempat', 'Aktif', 'Soalan Refleksi (pilihan)',
+  'Template Sijil (link gambar Google Drive, pilihan)'];
 const BULAN = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai',
   'Ogos', 'September', 'Oktober', 'November', 'Disember'];
 
@@ -185,6 +196,7 @@ function setupSheets() {
     prog.setFrozenRows(1);
     prog.autoResizeColumns(1, 5);
     prog.setColumnWidth(6, 400);
+    prog.setColumnWidth(7, 300);
   }
 
   let resp = ss.getSheetByName(SHEET_RESPON);
@@ -256,7 +268,7 @@ function findProgram_(kod) {
   const sheet = getSheet_(SHEET_PROGRAM);
   const last = sheet.getLastRow();
   if (last < 2) return null;
-  const rows = sheet.getRange(2, 1, last - 1, 6).getValues();
+  const rows = sheet.getRange(2, 1, last - 1, 7).getValues();
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     if (String(r[0]).trim().toUpperCase() === kod) {
@@ -268,6 +280,7 @@ function findProgram_(kod) {
         tempat: String(r[3]).trim(),
         aktif: aktifRaw === true || /^(ya|y|true|aktif)$/i.test(String(aktifRaw).trim()),
         refleksi: String(r[5] || '').trim(),
+        template: String(r[6] || '').trim(),
       };
     }
   }
@@ -326,8 +339,27 @@ function buildCert_(prog, nama, ic, id, reissued) {
     signName: CONFIG.SIGNATORY_NAME,
     signTitle: CONFIG.SIGNATORY_TITLE,
     verifyUrl: ScriptApp.getService().getUrl() + '?verify=' + encodeURIComponent(id),
+    template: prog.template ? loadTemplate_(prog.template) : null,
+    layout: CONFIG.TEMPLATE_LAYOUT,
     reissued: reissued,
   };
+}
+
+/** Baca gambar template dari Drive (link atau ID) dan pulangkan sebagai data URL. */
+function loadTemplate_(ref) {
+  const m = String(ref).match(/[-\w]{25,}/);
+  if (!m) throw new Error('Template sijil untuk program ini tidak sah. Sila hubungi urusetia.');
+  let blob;
+  try {
+    blob = DriveApp.getFileById(m[0]).getBlob();
+  } catch (e) {
+    throw new Error('Template sijil tidak dapat dibuka. Sila hubungi urusetia.');
+  }
+  const type = blob.getContentType();
+  if (!/^image\/(png|jpeg)$/.test(type)) {
+    throw new Error('Template sijil mesti gambar PNG atau JPG. Sila hubungi urusetia.');
+  }
+  return 'data:' + type + ';base64,' + Utilities.base64Encode(blob.getBytes());
 }
 
 function newCertId_(kod) {
