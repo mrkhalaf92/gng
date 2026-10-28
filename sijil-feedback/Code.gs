@@ -16,8 +16,8 @@
 const CONFIG = {
   ORG_NAME: 'GENG NGAJI GLOBAL',
   CERT_TITLE: 'SIJIL PENYERTAAN',
-  SIGNATORY_NAME: 'NAMA PENANDATANGAN',
-  SIGNATORY_TITLE: 'Pengarah Program',
+  SIGNATORY_NAME: 'USTAZ FAKHRUL ANUAR YUSOF',
+  SIGNATORY_TITLE: 'Pengarah Urusan',
   ID_PREFIX: 'GNG',
   RETENTION_MONTHS: 24,                    // data respon dipadam selepas tempoh ini
   RATE_LIMIT: { max: 6, windowSec: 600 },  // max 6 cubaan / 10 minit setiap IC
