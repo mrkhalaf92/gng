@@ -2,7 +2,7 @@
  * Sistem Feedback Program + Sijil Digital
  * Backend: Google Apps Script (bound kepada Google Sheet).
  *
- * Aliran: peserta buka link ?p=KODPROGRAM -> isi feedback -> server simpan
+ * Aliran: peserta buka link ?program=KODPROGRAM -> isi feedback -> server simpan
  * ke tab "Respon" -> server pulangkan data sijil -> browser lukis sijil
  * (nama + IC) dan peserta muat turun PDF / PNG.
  *
@@ -81,7 +81,8 @@ function doGet(e) {
     tpl.result = verifySijil_(String(p.verify));
   } else {
     tpl = HtmlService.createTemplateFromFile('Index');
-    tpl.kod = /^[A-Za-z0-9_-]{1,30}$/.test(String(p.p || '')) ? String(p.p) : '';
+    const kod = String(p.program || p.p || ''); // ?program= (utama); ?p= disokong untuk link lama
+    tpl.kod = /^[A-Za-z0-9_-]{1,30}$/.test(kod) ? kod : '';
   }
   return tpl.evaluate()
     .setTitle('Feedback & Sijil - ' + CONFIG.ORG_NAME)

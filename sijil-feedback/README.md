@@ -7,7 +7,7 @@ Stack: Google Apps Script + Google Sheets. Tak perlu server dan tak ada kos bula
 ## Aliran
 
 1. Urusetia daftar program dalam tab **Program** (kod, nama, tarikh, tempat, aktif).
-2. Kongsi link `URL_WEB_APP?p=KODPROGRAM` (contoh: dalam group WhatsApp selepas program).
+2. Kongsi link `URL_WEB_APP?program=KODPROGRAM` (contoh: dalam group WhatsApp selepas program).
 3. Peserta isi nama, IC, jabatan/organisasi, telefon (pilihan), penilaian bahagian A-D, cadangan dan soalan refleksi, kemudian tanda persetujuan PDPA.
 4. Server simpan jawapan ke tab **Respon**, dan sijil terus keluar di skrin.
 5. Peserta yang dah isi boleh muat turun semula sijil guna nama + IC yang sama. Ini masih berfungsi walaupun borang dah ditutup.
@@ -28,7 +28,7 @@ Stack: Google Apps Script + Google Sheets. Tak perlu server dan tak ada kos bula
 7. **Deploy > New deployment > Web app**
    - Execute as: **Me**
    - Who has access: **Anyone**
-8. Salin URL web app. Link untuk peserta ialah `URL?p=CONTOH01`.
+8. Salin URL web app. Link untuk peserta ialah `URL?program=CONTOH01`.
 
 Bila kod diubah selepas ini: **Deploy > Manage deployments > Edit > Version: New version**. Cara ini mengekalkan URL yang sama, jadi QR pada sijil lama masih berfungsi.
 
