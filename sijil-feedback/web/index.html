@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sijil Penyertaan - Geng Ngaji Global</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Lato:wght@400;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <style>
+    :root { --green: #1f4d3a; --gold: #b8913a; --bg: #f4f1ea; --line: #e2ddd2; --err: #b3261e; --muted: #666; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: #222; font-family: Lato, system-ui, sans-serif; font-size: 16px; line-height: 1.5; }
+    .wrap { max-width: 620px; margin: 0 auto; padding: 24px 16px 64px; }
+    .card { background: #fff; border-radius: 12px; padding: 24px; border: 1px solid var(--line); margin-bottom: 16px; }
+    .head { border-top: 8px solid var(--green); }
+    .org { color: var(--gold); font-weight: 700; letter-spacing: .12em; font-size: 13px; margin: 0; }
+    h1 { font-family: 'Playfair Display', serif; color: var(--green); font-size: 24px; margin: 4px 0 8px; line-height: 1.3; }
+    .meta { color: var(--muted); margin: 0; }
+    label { display: block; font-weight: 700; margin: 16px 0 6px; }
+    .hint { color: var(--muted); font-size: 14px; font-weight: 400; }
+    input[type=text] { width: 100%; padding: 12px; font: inherit; border: 1px solid #cfc8b8; border-radius: 8px; }
+    input[type=text]:focus { outline: 2px solid var(--green); border-color: transparent; }
+    .check { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; font-size: 14px; }
+    .check input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+    button { font: inherit; font-weight: 700; padding: 14px 20px; border-radius: 8px; border: 0; background: var(--green);
+      color: #fff; cursor: pointer; width: 100%; margin-top: 16px; }
+    button.alt { background: #fff; color: var(--green); border: 1px solid var(--green); }
+    button:disabled { opacity: .6; cursor: wait; }
+    .error { color: var(--err); font-weight: 700; margin: 12px 0 0; }
+    .hidden { display: none !important; }
+    #preview { width: 100%; border-radius: 6px; border: 1px solid var(--line); display: block; margin-top: 12px; }
+    .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .center { text-align: center; }
+    @media (max-width: 480px) { .card { padding: 18px; } .btns { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div id="vFatal" class="card hidden"><p class="error" id="fatalMsg"></p></div>
+
+  <div id="vMain" class="hidden">
+    <div class="card head">
+      <p class="org">GENG NGAJI GLOBAL</p>
+      <h1 id="pNama"></h1>
+      <p class="meta" id="pMeta"></p>
+    </div>
+
+    <form id="fSijil" class="card" novalidate>
+      <p style="margin-top:0">Terima kasih kerana mengisi borang penilaian. Masukkan nama dan No. IC untuk dicetak pada sijil anda.</p>
+      <label for="nama">Nama penuh <span class="hint">(seperti dalam IC)</span></label>
+      <input type="text" id="nama" maxlength="80" autocomplete="name">
+      <label for="ic">No. Kad Pengenalan <span class="hint">(cth: 900101-14-5678)</span></label>
+      <input type="text" id="ic" maxlength="14" inputmode="numeric">
+      <label class="check"><input type="checkbox" id="sah"> Saya mengesahkan saya peserta program ini dan telah mengisi borang penilaian.</label>
+      <p class="hint" style="margin:12px 0 0">Nama dan IC anda hanya diproses dalam telefon/komputer anda untuk menjana sijil. Ia tidak dihantar atau disimpan di mana-mana server.</p>
+      <p class="error hidden" id="formErr"></p>
+      <button type="submit" id="btnGo">Jana Sijil</button>
+    </form>
+
+    <div id="vDone" class="card hidden">
+      <h1 style="margin-top:0">Sijil anda</h1>
+      <img id="preview" alt="Sijil penyertaan">
+      <div class="btns">
+        <button type="button" id="dlPdf">Muat Turun PDF</button>
+        <button type="button" class="alt" id="dlPng">Muat Turun Gambar</button>
+      </div>
+      <p class="hint center">Kalau butang tak berfungsi di telefon, tekan lama pada gambar sijil dan pilih "Simpan gambar".</p>
+      <button type="button" class="alt" id="btnBack">Betulkan nama / IC</button>
+    </div>
+  </div>
+</div>
+<canvas id="cv" class="hidden"></canvas>
+
+<script>
+// Senarai program. Tambah program baru di sini (template = gambar dalam folder yang sama).
+// Posisi y dalam pecahan tinggi gambar (0 = atas, 1 = bawah); diukur dari design Canva MBJB Okt 2026.
+const PROGRAMS = {
+  MBJB1026: {
+    nama: 'Bengkel Pemerkasaan Integriti melalui Penghayatan Solat Sempurna',
+    meta: '28 & 29 Oktober 2026 · Amari Hotel, Johor Bahru',
+    template: 'mbjb1026.jpg',
+    layout: {
+      font: 'Cinzel, Georgia, serif', weight: 600, color: '#171501',
+      nama: { y: 0.3614, size: 0.0327, maxWidth: 0.78 },
+      ic: { y: 0.4003, size: 0.0327 },
+    },
+  },
+};
+
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const show = (id, on) => $(id).classList.toggle('hidden', !on);
+  const kod = (new URLSearchParams(location.search).get('program') || '').toUpperCase();
+  const P = PROGRAMS[kod];
+  let fileBase = 'Sijil';
+
+  if (!P) {
+    $('fatalMsg').textContent = 'Link sijil tidak lengkap atau program tidak dijumpai. Sila guna link yang diberi oleh urusetia.';
+    show('vFatal', true);
+    return;
+  }
+  $('pNama').textContent = P.nama;
+  $('pMeta').textContent = P.meta;
+  show('vMain', true);
+
+  // Muat template awal supaya sijil keluar laju bila ditekan.
+  const tplPromise = new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Template sijil gagal dimuatkan. Semak internet dan cuba lagi.'));
+    img.src = P.template;
+  });
+
+  $('ic').addEventListener('input', (e) => {
+    const d = e.target.value.replace(/\D/g, '').slice(0, 12);
+    e.target.value = d.length > 8 ? d.slice(0, 6) + '-' + d.slice(6, 8) + '-' + d.slice(8)
+      : d.length > 6 ? d.slice(0, 6) + '-' + d.slice(6) : d;
+  });
+
+  function cleanNama(s) {
+    s = String(s).trim().replace(/\s+/g, ' ').toUpperCase();
+    if (s.length < 3) throw new Error('Sila isi nama penuh.');
+    if (!/^[A-ZÀ-ɏ][A-ZÀ-ɏ .'@\/()-]*$/.test(s)) {
+      throw new Error('Nama hanya boleh mengandungi huruf, ruang dan simbol . \' @ / - ( )');
+    }
+    return s;
+  }
+  function cleanIC(s) {
+    const d = String(s).replace(/\D/g, '');
+    const mm = Number(d.slice(2, 4)), dd = Number(d.slice(4, 6));
+    if (d.length !== 12 || mm < 1 || mm > 12 || dd < 1 || dd > 31) throw new Error('No. IC tidak sah. Contoh: 900101-14-5678');
+    return d.slice(0, 6) + '-' + d.slice(6, 8) + '-' + d.slice(8);
+  }
+
+  $('fSijil').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    show('formErr', false);
+    const btn = $('btnGo');
+    try {
+      const nama = cleanNama($('nama').value);
+      const ic = cleanIC($('ic').value);
+      if (!$('sah').checked) throw new Error('Sila tandakan pengesahan.');
+      btn.disabled = true; btn.textContent = 'Menjana sijil...';
+      await draw(await tplPromise, nama, ic);
+      fileBase = 'Sijil-' + kod + '-' + nama.replace(/[^A-Z0-9]+/g, '-').replace(/^-|-$/g, '');
+      $('preview').src = $('cv').toDataURL('image/jpeg', 0.9);
+      show('fSijil', false); show('vDone', true);
+      window.scrollTo(0, 0);
+    } catch (e) {
+      $('formErr').textContent = e.message; show('formErr', true);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Jana Sijil';
+    }
+  });
+
+  $('btnBack').onclick = () => { show('vDone', false); show('fSijil', true); };
+
+  async function draw(img, nama, ic) {
+    const L = P.layout;
+    try { await document.fonts.load(L.weight + ' 60px ' + L.font); } catch (e) { /* font fallback */ }
+    const cv = $('cv');
+    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    const W = cv.width, H = cv.height, g = cv.getContext('2d');
+    g.drawImage(img, 0, 0, W, H);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = L.color;
+    let size = Math.round(L.nama.size * H);
+    const min = Math.round(size * 0.6), maxW = L.nama.maxWidth * W;
+    do { g.font = L.weight + ' ' + size + 'px ' + L.font; size -= 2; } while (g.measureText(nama).width > maxW && size >= min);
+    g.fillText(nama, W / 2, L.nama.y * H, maxW);
+    g.font = L.weight + ' ' + Math.round(L.ic.size * H) + 'px ' + L.font;
+    g.fillText(ic, W / 2, L.ic.y * H);
+  }
+
+  $('dlPdf').onclick = () => {
+    const cv = $('cv'), portrait = cv.height > cv.width;
+    const doc = new window.jspdf.jsPDF({ orientation: portrait ? 'portrait' : 'landscape', unit: 'mm', format: 'a4' });
+    doc.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, portrait ? 210 : 297, portrait ? 297 : 210);
+    doc.save(fileBase + '.pdf');
+  };
+  $('dlPng').onclick = () => {
+    $('cv').toBlob((blob) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = fileBase + '.jpg';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }, 'image/jpeg', 0.92);
+  };
+})();
+</script>
+</body>
+</html>
