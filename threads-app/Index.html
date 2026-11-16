@@ -60,6 +60,20 @@
   a { color: var(--accent); }
   .bars div { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 4px 0; }
   .bars span.b { height: 10px; background: var(--accent); border-radius: 3px; }
+  .pill.Uji { background: transparent; color: var(--warn); border: 1px solid var(--warn); }
+  .slot { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); margin-right: 4px; }
+  .cal { display: grid; gap: 10px; }
+  .cal-day { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .cal-day h3 { margin: 0 0 8px; font-size: 14px; }
+  .cal-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  @media (max-width: 640px) { .cal-slots { grid-template-columns: 1fr; } }
+  .cal-slot { border: 1px dashed var(--line); border-radius: 8px; padding: 8px; font-size: 13px; min-height: 64px; }
+  .cal-slot.filled { border-style: solid; }
+  .cal-slot.past { opacity: .55; }
+  .cal-slot .t { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .banner { padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 14px; border: 1px solid var(--warn); color: var(--warn); }
+  .banner.live { border-color: var(--accent); color: var(--accent); }
+  .brief { font-size: 13px; color: var(--muted); background: var(--bg); border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; }
 </style>
 </head>
 <body>
@@ -69,6 +83,7 @@
 </header>
 <nav>
   <button data-tab="dash" class="on">Dashboard</button>
+  <button data-tab="sched">Jadual</button>
   <button data-tab="content">Content Bank</button>
   <button data-tab="settings">Tetapan</button>
 </nav>
@@ -93,12 +108,26 @@
     </div>
   </section>
 
+  <!-- JADUAL -->
+  <section id="sched">
+    <div class="banner" id="modeBanner"></div>
+    <div class="row">
+      <button class="btn" id="btnAuto">Isi slot kosong (7 hari)</button>
+      <button class="btn ghost" id="btnMode"></button>
+    </div>
+    <p class="muted" id="readyInfo"></p>
+    <div class="cal" id="cal"></div>
+  </section>
+
   <!-- CONTENT BANK -->
   <section id="content">
     <div class="row">
       <button class="btn" id="btnNew">+ Content baru</button>
       <select id="filterStatus" style="width:auto">
         <option value="">Semua status</option>
+      </select>
+      <select id="filterSlot" style="width:auto">
+        <option value="">Semua slot</option>
       </select>
     </div>
     <div class="tbl-wrap">
@@ -129,12 +158,15 @@
   <h2 style="margin-top:0" id="edTitle">Content</h2>
   <input type="hidden" id="edId">
   <label for="edTopik">Topik</label><input id="edTopik" maxlength="200">
-  <label for="edSiri">Siri (cth: Perbuatan dalam Solat 3/8)</label><input id="edSiri" maxlength="100">
+  <label for="edSiri">Siri</label><input id="edSiri" maxlength="100">
+  <label for="edSlot">Slot</label><select id="edSlot"></select>
+  <label>Brief (sudut & rujukan untuk disemak)</label>
+  <textarea id="edBrief" style="min-height:70px" maxlength="1000"></textarea>
   <label for="edTeks">Teks post</label><textarea id="edTeks"></textarea>
   <div class="count" id="edCount">0 / 500</div>
   <label for="edImg">Image URL (https, mesti boleh diakses awam)</label><input id="edImg">
   <label for="edStatus">Status</label><select id="edStatus"></select>
-  <label for="edJadual">Jadual (untuk Fasa 2: auto-post)</label><input id="edJadual" type="datetime-local">
+  <label for="edJadual">Jadual (biasanya diisi automatik bila status "Sedia")</label><input id="edJadual" type="datetime-local">
   <label for="edCatatan">Catatan</label><input id="edCatatan" maxlength="500">
   <div class="row" style="margin-top:16px; justify-content:flex-end">
     <button class="btn ghost" id="edCancel">Batal</button>
@@ -145,7 +177,9 @@
 <div id="toast"></div>
 
 <script>
-const STATUSES = ['Draf', 'Sedia', 'Dijadual', 'Diposting', 'Gagal'];
+const STATUSES = ['Draf', 'Sedia', 'Dijadual', 'Diposting', 'Uji', 'Gagal'];
+const SLOT_NAMES = ['Pagi', 'Tengahari', 'Malam'];
+let STATUS = {};
 let CONTENT = [];
 
 /* ---------- util ---------- */
@@ -191,10 +225,13 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
   document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === b.dataset.tab));
   if (b.dataset.tab === 'content') loadContent();
+  if (b.dataset.tab === 'sched') loadCalendar();
 });
 
 /* ---------- status ---------- */
 function renderStatus(s) {
+  STATUS = s;
+  renderMode();
   $('conn').textContent = s.connected ? 'Disambung: @' + s.username : 'Belum disambung';
   $('lastSync').textContent = s.lastSync ? 'Sync terakhir: ' + fmtDate(s.lastSync, true) : 'Belum pernah sync';
   $('settingsInfo').textContent = s.connected
@@ -242,23 +279,37 @@ STATUSES.forEach(s => {
   $('edStatus').append(el('option', { value: s, textContent: s }));
 });
 $('filterStatus').onchange = renderContent;
+SLOT_NAMES.forEach(n => {
+  $('filterSlot').append(el('option', { value: n, textContent: n }));
+  $('edSlot').append(el('option', { value: n, textContent: n }));
+});
+$('edSlot').prepend(el('option', { value: '', textContent: '(tiada slot)' }));
+$('filterSlot').onchange = renderContent;
 
 function loadContent() { return call('listContent').then(c => { CONTENT = c; renderContent(); }); }
 
 function renderContent() {
   const f = $('filterStatus').value;
-  const rows = CONTENT.filter(c => !f || c.Status === f);
+  const fs = $('filterSlot').value;
+  const rows = CONTENT.filter(c => (!f || c.Status === f) && (!fs || c.Slot === fs));
   $('contentBody').replaceChildren(...(rows.length ? rows.map(c => {
     const actions = el('div', { className: 'row' });
     actions.style.margin = '0';
     actions.append(el('button', { className: 'btn ghost sm', textContent: 'Edit', onclick: () => openEditor(c) }));
+    if (c.Status === 'Dijadual') {
+      actions.append(el('button', { className: 'btn ghost sm', textContent: 'Batal jadual', onclick: ev =>
+        call('unschedule', [c.ID], ev.target).then(() => { toast('Jadual dibatalkan'); loadContent(); }) }));
+    }
     if (c.Status !== 'Diposting') {
       actions.append(el('button', { className: 'btn sm', textContent: 'Post sekarang', onclick: ev => postNow(c, ev.target) }));
     } else if (c.Permalink) {
       actions.append(el('a', { href: c.Permalink, target: '_blank', rel: 'noopener', textContent: 'Lihat' }));
     }
-    const topik = el('td', {}, [el('div', { textContent: c.Topik }), el('div', { className: 'muted', textContent: c.Siri })]);
-    const teks = el('td', {}, [el('div', { textContent: String(c.Teks || '').slice(0, 120) || '—' })]);
+    const meta = el('div', { className: 'muted' });
+    if (c.Slot) meta.append(el('span', { className: 'slot', textContent: c.Slot + ' · ' + c.Tahap }));
+    meta.append(c.Siri || '');
+    const topik = el('td', {}, [el('div', { textContent: c.Topik }), meta]);
+    const teks = el('td', {}, [el('div', { textContent: String(c.Teks || '').slice(0, 120) || '(kapsyen belum ditulis)' })]);
     if (c.Catatan) teks.append(el('div', { className: 'muted', textContent: c.Catatan }));
     return el('tr', {}, [
       el('td', {}, [el('span', { className: 'pill ' + c.Status, textContent: c.Status })]),
@@ -275,6 +326,8 @@ function openEditor(c) {
   $('edId').value = c.ID || '';
   $('edTopik').value = c.Topik || '';
   $('edSiri').value = c.Siri || '';
+  $('edSlot').value = c.Slot || '';
+  $('edBrief').value = c.Brief || '';
   $('edTeks').value = c.Teks || '';
   $('edImg').value = c.ImageURL || '';
   $('edStatus').value = c.Status || 'Draf';
@@ -295,6 +348,7 @@ $('edSave').onclick = e => {
   if ($('edTeks').value.length > 500) return toast('Teks melebihi 500 aksara', true);
   const item = {
     ID: $('edId').value, Topik: $('edTopik').value, Siri: $('edSiri').value, Teks: $('edTeks').value,
+    Slot: $('edSlot').value, Brief: $('edBrief').value,
     ImageURL: $('edImg').value, Status: $('edStatus').value,
     Jadual: $('edJadual').value ? new Date($('edJadual').value).toISOString() : '',
     Catatan: $('edCatatan').value
@@ -308,6 +362,49 @@ function postNow(c, btn) {
   call('postNow', [c.ID], btn).then(list => { CONTENT = list; renderContent(); toast('Berjaya diposting'); })
     .catch(() => loadContent());
 }
+
+/* ---------- jadual ---------- */
+const HARI = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
+function renderMode() {
+  const uji = STATUS.dryRun !== false;
+  $('modeBanner').className = 'banner' + (uji ? '' : ' live');
+  $('modeBanner').textContent = uji
+    ? 'Mode uji HIDUP: jadual berjalan tapi tiada apa dihantar ke Threads. Item ditanda "Uji".'
+    : 'Mode sebenar: item "Dijadual" akan dipost ke Threads secara automatik.';
+  $('btnMode').textContent = uji ? 'Tutup mode uji (post sebenar)' : 'Hidupkan mode uji';
+}
+function loadCalendar() { return call('getCalendar', [7]).then(renderCalendar); }
+function renderCalendar(c) {
+  renderStatus(c.status);
+  $('readyInfo').textContent = 'Item "Sedia" dalam barisan: ' +
+    SLOT_NAMES.map(n => n + ' ' + (c.ready[n] || 0)).join(' · ') +
+    '. Hanya item berstatus "Sedia" akan dijadual automatik.';
+  $('cal').replaceChildren(...c.days.map(d => {
+    const dt = new Date(d.date);
+    const slots = d.slots.map(s => {
+      const box = el('div', { className: 'cal-slot' + (s.item ? ' filled' : '') + (s.past ? ' past' : '') });
+      const t = new Date(s.when);
+      box.append(el('div', { className: 't', textContent: s.slot + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') + ' · ' + s.tahap }));
+      if (s.item) {
+        box.append(el('span', { className: 'pill ' + s.item.Status, textContent: s.item.Status }));
+        box.append(el('div', { textContent: s.item.Topik }));
+      } else {
+        box.append(el('div', { className: 'muted', textContent: 'Kosong' }));
+      }
+      return box;
+    });
+    return el('div', { className: 'cal-day' }, [
+      el('h3', { textContent: HARI[dt.getDay()] + ', ' + fmtDate(d.date) }),
+      el('div', { className: 'cal-slots' }, slots)
+    ]);
+  }));
+}
+$('btnAuto').onclick = e => call('autoSchedule', [7], e.target).then(c => { renderCalendar(c); toast('Slot kosong diisi'); });
+$('btnMode').onclick = e => {
+  const turnOff = STATUS.dryRun !== false;
+  if (turnOff && !confirm('Tutup mode uji? Item "Dijadual" akan dipost ke Threads secara automatik.')) return;
+  call('setDryRun', [!turnOff], e.target).then(s => { renderStatus(s); toast(turnOff ? 'Mode sebenar aktif' : 'Mode uji hidup'); });
+};
 
 /* ---------- tetapan ---------- */
 $('btnSaveToken').onclick = e => {

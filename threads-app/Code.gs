@@ -1,6 +1,7 @@
 /**
  * Threads Studio — Ilmu Solat
  * Fasa 1: sambungan Threads API, content bank, post sekarang, sync post + insights.
+ * Fasa 2: 3 slot sehari (Pagi/Tengahari/Malam), auto-isi jadual, auto-post, kalendar, mode uji.
  *
  * Keselamatan:
  * - Web app deploy "Execute as: Me" + "Who has access: Only myself" (Google yang buat login).
@@ -15,7 +16,8 @@ const SHEETS = {
   CONTENT: {
     name: 'Content',
     headers: ['ID', 'Status', 'Topik', 'Siri', 'Teks', 'ImageURL', 'Jadual',
-              'ThreadsID', 'Permalink', 'DipostPada', 'Catatan', 'Dikemaskini']
+              'ThreadsID', 'Permalink', 'DipostPada', 'Catatan', 'Dikemaskini',
+              'Slot', 'Tahap', 'Brief']
   },
   POSTS: {
     name: 'Posts',
@@ -28,7 +30,21 @@ const SHEETS = {
   }
 };
 
-const STATUSES = ['Draf', 'Sedia', 'Dijadual', 'Diposting', 'Gagal'];
+const STATUSES = ['Draf', 'Sedia', 'Dijadual', 'Diposting', 'Uji', 'Gagal'];
+
+/** 3 slot sehari. Tukar masa di sini jika perlu (waktu Malaysia). */
+const SLOTS = [
+  { name: 'Pagi',      hour: 9,  minute: 0, tahap: 'Ringan' },
+  { name: 'Tengahari', hour: 13, minute: 0, tahap: 'Sederhana' },
+  { name: 'Malam',     hour: 21, minute: 0, tahap: 'Berat' }
+];
+const SCHEDULE_DAYS = 7;       // auto-isi jadual untuk 7 hari ke depan
+const LATE_LIMIT_MIN = 120;    // lewat lebih 2 jam = terlepas slot, pulangkan ke "Sedia"
+const TZ = 'Asia/Kuala_Lumpur';
+
+function slotDef_(name) {
+  return SLOTS.find(s => s.name === name) || SLOTS[0];
+}
 
 /* =========================================================
  * WEB APP
@@ -59,33 +75,16 @@ function setup() {
 }
 
 function installTriggers_() {
+  const handlers = ['refreshToken', 'runScheduler', 'autoScheduleDaily'];
   ScriptApp.getProjectTriggers()
-    .filter(t => t.getHandlerFunction() === 'refreshToken')
+    .filter(t => handlers.includes(t.getHandlerFunction()))
     .forEach(t => ScriptApp.deleteTrigger(t));
   // Token long-lived tahan ~60 hari. Refresh setiap minggu supaya tak pernah tamat.
   ScriptApp.newTrigger('refreshToken').timeBased().everyWeeks(1).onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(3).create();
-}
-
-function seedContent_() {
-  const sh = sheet_(SHEETS.CONTENT);
-  if (sh.getLastRow() > 1) return; // dah ada data, jangan tindih
-  const base = 'https://raw.githubusercontent.com/mrkhalaf92/gng/main/infografik-panel/';
-  const panels = [
-    ['1-angkat-tangan.png', 'Angkat tangan (takbiratul ihram)'],
-    ['2-berdiri-tegak.png', 'Berdiri tegak'],
-    ['3-rukuk.png', 'Rukuk'],
-    ['4-itidal.png', "I'tidal"],
-    ['5-sujud.png', 'Sujud'],
-    ['6-duduk-antara-dua-sujud.png', 'Duduk antara dua sujud'],
-    ['7-tahiyyat-akhir.png', 'Tahiyyat akhir'],
-    ['8-salam.png', 'Salam']
-  ];
-  const now = new Date();
-  const rows = panels.map((p, i) => [
-    Utilities.getUuid(), 'Draf', p[1], 'Perbuatan dalam Solat ' + (i + 1) + '/8', '',
-    base + p[0], '', '', '', '', 'Tulis kapsyen & semak dengan ustaz sebelum post', now
-  ]);
-  sh.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+  // Semak jadual setiap 10 minit (post akan keluar 0-10 minit selepas masa slot).
+  ScriptApp.newTrigger('runScheduler').timeBased().everyMinutes(10).create();
+  // Isi slot kosong untuk 7 hari ke depan, setiap malam.
+  ScriptApp.newTrigger('autoScheduleDaily').timeBased().everyDays(1).atHour(0).create();
 }
 
 /* =========================================================
@@ -114,7 +113,9 @@ function getStatus() {
     connected: !!p.THREADS_TOKEN,
     username: p.THREADS_USERNAME || '',
     tokenSavedAt: p.TOKEN_SAVED_AT || '',
-    lastSync: p.LAST_SYNC || ''
+    lastSync: p.LAST_SYNC || '',
+    dryRun: p.DRY_RUN !== 'false',   // default: mode uji HIDUP sehingga ditutup
+    slots: SLOTS.map(s => ({ name: s.name, time: pad_(s.hour) + ':' + pad_(s.minute), tahap: s.tahap }))
   };
 }
 
@@ -152,8 +153,12 @@ function saveContent(item) {
     Teks: limit_(item.Teks, MAX_CHARS),
     ImageURL: String(item.ImageURL || '').trim(),
     Jadual: item.Jadual ? new Date(item.Jadual) : '',
-    Catatan: limit_(item.Catatan, 500)
+    Catatan: limit_(item.Catatan, 500),
+    Slot: SLOTS.some(x => x.name === item.Slot) ? item.Slot : '',
+    Brief: limit_(item.Brief, 1000)
   };
+  clean.Tahap = clean.Slot ? slotDef_(clean.Slot).tahap : '';
+  if (clean.Status === 'Dijadual' && !clean.Jadual) throw new Error('Status "Dijadual" perlukan tarikh jadual');
   if (clean.ImageURL && !/^https:\/\/\S+$/.test(clean.ImageURL)) throw new Error('ImageURL mesti bermula https://');
   if (clean.Jadual && isNaN(clean.Jadual.getTime())) throw new Error('Tarikh jadual tak sah');
 
@@ -185,20 +190,42 @@ function deleteContent(id) {
   return listContent();
 }
 
-/** Post satu item content bank ke Threads sekarang. */
+/** Post satu item content bank ke Threads sekarang (butang manual). */
 function postNow(id) {
   const sh = sheet_(SHEETS.CONTENT);
-  const h = SHEETS.CONTENT.headers;
   const r = findRow_(sh, id);
   if (r < 0) throw new Error('Item tak dijumpai');
+  const res = postRow_(sh, r, false);
+  if (!res.ok) throw new Error(res.error);
+  return listContent();
+}
+
+/**
+ * Post satu baris. dryRun = true: tak hantar ke Threads, cuma tanda "Uji".
+ * Pulangkan { ok, error }.
+ */
+function postRow_(sh, r, dryRun) {
+  const h = SHEETS.CONTENT.headers;
   const row = sh.getRange(r, 1, 1, h.length).getValues()[0];
   const get = k => row[h.indexOf(k)];
   const set = (k, v) => sh.getRange(r, h.indexOf(k) + 1).setValue(v);
 
-  if (get('Status') === 'Diposting') throw new Error('Item ini dah diposting');
+  if (get('Status') === 'Diposting') return { ok: false, error: 'Item ini dah diposting' };
   const text = String(get('Teks') || '').trim();
   const img = String(get('ImageURL') || '').trim();
-  if (!text && !img) throw new Error('Teks kosong');
+  if (!text && !img) {
+    set('Status', 'Gagal'); set('Catatan', 'Teks kosong');
+    return { ok: false, error: 'Teks kosong' };
+  }
+
+  if (dryRun) {
+    set('Status', 'Uji');
+    set('DipostPada', new Date());
+    set('Catatan', 'Mode uji: tak dihantar ke Threads');
+    set('Dikemaskini', new Date());
+    log_('post(uji)', 'OK', get('Topik'));
+    return { ok: true };
+  }
 
   try {
     const res = publish_(text, img);
@@ -207,16 +234,164 @@ function postNow(id) {
     set('Permalink', res.permalink || '');
     set('DipostPada', new Date());
     set('Catatan', '');
-    log_('postNow', 'OK', res.id);
+    set('Dikemaskini', new Date());
+    log_('post', 'OK', res.id);
+    return { ok: true };
   } catch (e) {
     set('Status', 'Gagal');
     set('Catatan', sanitize_(String(e.message).slice(0, 300)));
-    log_('postNow', 'GAGAL', e.message);
-    throw e;
+    set('Dikemaskini', new Date());
+    log_('post', 'GAGAL', e.message);
+    return { ok: false, error: e.message };
   }
-  set('Dikemaskini', new Date());
-  return listContent();
 }
+
+/* =========================================================
+ * FASA 2 — PENJADUAL
+ * ======================================================= */
+
+/** Trigger setiap 10 minit: post item "Dijadual" yang dah sampai masa. */
+function runScheduler() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return; // run sebelum ini masih berjalan
+  try {
+    const sh = sheet_(SHEETS.CONTENT);
+    const h = SHEETS.CONTENT.headers;
+    const last = sh.getLastRow();
+    if (last < 2) return;
+    const data = sh.getRange(2, 1, last - 1, h.length).getValues();
+    const iS = h.indexOf('Status'), iJ = h.indexOf('Jadual');
+    const now = Date.now();
+    const dryRun = getStatus().dryRun;
+    let posted = 0;
+
+    for (let i = 0; i < data.length && posted < 3; i++) {
+      const jadual = data[i][iJ];
+      if (data[i][iS] !== 'Dijadual' || !(jadual instanceof Date) || jadual.getTime() > now) continue;
+      const r = i + 2;
+      const lateMin = (now - jadual.getTime()) / 60000;
+      if (lateMin > LATE_LIMIT_MIN) {
+        // Terlepas slot (contoh: trigger mati). Pulangkan supaya auto-isi letak semula.
+        sh.getRange(r, iS + 1).setValue('Sedia');
+        sh.getRange(r, iJ + 1).setValue('');
+        sh.getRange(r, h.indexOf('Catatan') + 1).setValue('Terlepas slot, dipulangkan ke Sedia');
+        log_('scheduler', 'TERLEPAS', data[i][h.indexOf('Topik')]);
+        continue;
+      }
+      postRow_(sh, r, dryRun);
+      posted++;
+    }
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function autoScheduleDaily() { autoSchedule(SCHEDULE_DAYS); }
+
+/**
+ * Isi slot kosong untuk N hari ke depan dengan item "Sedia" yang sepadan slotnya.
+ * Ikut susunan baris dalam Sheet (atas dahulu). Hanya item "Sedia" — Draf tak akan dijadual.
+ */
+function autoSchedule(days) {
+  days = Math.min(Math.max(Number(days) || SCHEDULE_DAYS, 1), 30);
+  const sh = sheet_(SHEETS.CONTENT);
+  const h = SHEETS.CONTENT.headers;
+  const last = sh.getLastRow();
+  if (last < 2) return getCalendar(days);
+  const data = sh.getRange(2, 1, last - 1, h.length).getValues();
+  const iS = h.indexOf('Status'), iJ = h.indexOf('Jadual'), iSlot = h.indexOf('Slot');
+
+  // Slot yang dah terisi
+  const taken = {};
+  data.forEach(r => {
+    if ((r[iS] === 'Dijadual' || r[iS] === 'Diposting' || r[iS] === 'Uji') && r[iJ] instanceof Date) {
+      taken[slotKey_(r[iJ])] = true;
+    }
+  });
+
+  // Barisan item Sedia ikut slot
+  const queue = {};
+  SLOTS.forEach(s => queue[s.name] = []);
+  data.forEach((r, i) => { if (r[iS] === 'Sedia' && queue[r[iSlot]]) queue[r[iSlot]].push(i); });
+
+  const now = new Date();
+  let filled = 0;
+  for (let d = 0; d < days; d++) {
+    SLOTS.forEach(s => {
+      const when = slotDate_(now, d, s);
+      if (when.getTime() <= now.getTime() + 5 * 60000) return; // slot dah lepas / terlalu dekat
+      if (taken[slotKey_(when)] || !queue[s.name].length) return;
+      const i = queue[s.name].shift();
+      data[i][iS] = 'Dijadual';
+      data[i][iJ] = when;
+      taken[slotKey_(when)] = true;
+      sh.getRange(i + 2, iS + 1).setValue('Dijadual');
+      sh.getRange(i + 2, iJ + 1).setValue(when);
+      filled++;
+    });
+  }
+  log_('autoSchedule', 'OK', filled + ' slot diisi');
+  return getCalendar(days);
+}
+
+/** Batalkan jadual satu item (pulang ke Sedia). */
+function unschedule(id) {
+  const sh = sheet_(SHEETS.CONTENT);
+  const h = SHEETS.CONTENT.headers;
+  const r = findRow_(sh, id);
+  if (r < 0) throw new Error('Item tak dijumpai');
+  if (sh.getRange(r, h.indexOf('Status') + 1).getValue() !== 'Dijadual') throw new Error('Item tak dijadual');
+  sh.getRange(r, h.indexOf('Status') + 1).setValue('Sedia');
+  sh.getRange(r, h.indexOf('Jadual') + 1).setValue('');
+  return getCalendar(SCHEDULE_DAYS);
+}
+
+/** Grid kalendar: hari x slot. */
+function getCalendar(days) {
+  days = Math.min(Math.max(Number(days) || SCHEDULE_DAYS, 1), 30);
+  const items = readObjects_(SHEETS.CONTENT);
+  const bySlot = {};
+  items.forEach(o => {
+    if (o.Jadual instanceof Date && ['Dijadual', 'Diposting', 'Uji', 'Gagal'].includes(o.Status)) {
+      bySlot[slotKey_(o.Jadual)] = o;
+    }
+  });
+  const now = new Date();
+  const out = [];
+  for (let d = 0; d < days; d++) {
+    const date = slotDate_(now, d, SLOTS[0]);
+    out.push({
+      date: date.toISOString(),
+      slots: SLOTS.map(s => {
+        const when = slotDate_(now, d, s);
+        const o = bySlot[slotKey_(when)];
+        return {
+          slot: s.name, tahap: s.tahap, when: when.toISOString(), past: when.getTime() < now.getTime(),
+          item: o ? { ID: o.ID, Topik: o.Topik, Status: o.Status, Teks: String(o.Teks || '').slice(0, 100), Permalink: o.Permalink } : null
+        };
+      })
+    });
+  }
+  const ready = {};
+  SLOTS.forEach(s => ready[s.name] = items.filter(o => o.Status === 'Sedia' && o.Slot === s.name).length);
+  return { days: out, ready: ready, status: getStatus() };
+}
+
+function setDryRun(on) {
+  PropertiesService.getScriptProperties().setProperty('DRY_RUN', on ? 'true' : 'false');
+  log_('setDryRun', 'OK', on ? 'Mode uji HIDUP' : 'Mode uji TUTUP — post sebenar');
+  return getStatus();
+}
+
+/** Tarikh slot untuk hari ke-d dari hari ini (zon masa script = Asia/Kuala_Lumpur). */
+function slotDate_(base, d, slot) {
+  const ymd = Utilities.formatDate(base, TZ, 'yyyy-MM-dd').split('-').map(Number);
+  return new Date(ymd[0], ymd[1] - 1, ymd[2] + d, slot.hour, slot.minute, 0, 0);
+}
+
+function slotKey_(date) { return Utilities.formatDate(date, TZ, 'yyyy-MM-dd HH:mm'); }
+
+function pad_(n) { return String(n).padStart(2, '0'); }
 
 /* =========================================================
  * THREADS API — PUBLISH
