@@ -44,7 +44,7 @@ Webapp peribadi (Google Apps Script + Google Sheets) untuk pantau, jadual dan po
 
 ### C. Gambar untuk post
 
-Threads perlukan gambar dari URL awam (https). Draf siri 1–8 guna link `raw.githubusercontent.com` ke folder `infografik-panel`.
+Threads perlukan gambar dari URL awam (https). Draf Tengahari "Kesalahan Lazim 1–8" guna link `raw.githubusercontent.com` ke folder `infografik-panel`.
 Ini hanya berfungsi kalau repo **public** dan fail dah ada di branch `main`. Kalau repo private, upload gambar ke tempat awam lain (contoh Google Drive tak sesuai sebab link bukan direct image).
 
 ## Cara guna harian (Fasa 2)
