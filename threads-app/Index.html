@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #f6f5f1; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6a65; --line: #e4e2db;
+    --accent: #1f6f5c; --accent-soft: #e3f0ec; --warn: #b4531f; --danger: #a8322d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #151614; --card: #1e201d; --ink: #ecebe6; --muted: #9c9b95; --line: #30322e;
+            --accent: #5fbfa3; --accent-soft: #1d332c; --warn: #e48a55; --danger: #e07069; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 16px; border-bottom: 1px solid var(--line); display: flex;
+           justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  #conn { font-size: 13px; color: var(--muted); }
+  nav { display: flex; gap: 4px; padding: 8px 16px 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  nav button { background: none; border: 0; padding: 10px 14px; font: inherit; color: var(--muted);
+               border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+  nav button.on { color: var(--ink); border-color: var(--accent); font-weight: 600; }
+  main { padding: 16px; max-width: 1100px; margin: 0 auto; }
+  section { display: none; } section.on { display: block; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .kpi .v { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .kpi .l { font-size: 13px; color: var(--muted); }
+  h2 { font-size: 16px; margin: 20px 0 10px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 14px; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .tbl-wrap { overflow-x: auto; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 12px; background: var(--accent-soft); color: var(--accent); }
+  .pill.Gagal { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+  .pill.Draf { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  button.btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; font: inherit; cursor: pointer; }
+  button.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  button.btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+  button.btn.sm { padding: 4px 10px; font-size: 13px; }
+  button:disabled { opacity: .5; cursor: wait; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input, select, textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+                            background: var(--card); color: var(--ink); font: inherit; }
+  textarea { min-height: 140px; resize: vertical; }
+  .count { font-size: 12px; color: var(--muted); text-align: right; }
+  .count.over { color: var(--danger); font-weight: 600; }
+  .muted { color: var(--muted); font-size: 13px; }
+  #toast { position: fixed; bottom: 16px; left: 16px; right: 16px; max-width: 480px; margin: 0 auto;
+           padding: 12px 14px; border-radius: 10px; background: var(--ink); color: var(--bg); display: none; z-index: 10; }
+  #toast.err { background: var(--danger); color: #fff; }
+  dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink);
+           width: min(640px, calc(100vw - 32px)); padding: 18px; }
+  dialog::backdrop { background: rgba(0,0,0,.35); }
+  a { color: var(--accent); }
+  .bars div { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 4px 0; }
+  .bars span.b { height: 10px; background: var(--accent); border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Threads Studio — Ilmu Solat</h1>
+  <div id="conn">Memuatkan…</div>
+</header>
+<nav>
+  <button data-tab="dash" class="on">Dashboard</button>
+  <button data-tab="content">Content Bank</button>
+  <button data-tab="settings">Tetapan</button>
+</nav>
+
+<main>
+  <!-- DASHBOARD -->
+  <section id="dash" class="on">
+    <div class="row">
+      <button class="btn" id="btnSync">Sync post &amp; insights</button>
+      <span class="muted" id="lastSync"></span>
+    </div>
+    <div class="grid" id="kpis"></div>
+    <h2>Status content bank</h2>
+    <div class="card bars" id="statusBars"></div>
+    <h2>10 post teratas (ikut views)</h2>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Tarikh</th><th>Post</th><th class="num">Views</th><th class="num">Likes</th>
+          <th class="num">Replies</th><th class="num">Reposts</th><th class="num">Eng.</th></tr></thead>
+        <tbody id="topBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- CONTENT BANK -->
+  <section id="content">
+    <div class="row">
+      <button class="btn" id="btnNew">+ Content baru</button>
+      <select id="filterStatus" style="width:auto">
+        <option value="">Semua status</option>
+      </select>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Status</th><th>Topik / Siri</th><th>Teks</th><th>Jadual</th><th></th></tr></thead>
+        <tbody id="contentBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- TETAPAN -->
+  <section id="settings">
+    <div class="card">
+      <h2 style="margin-top:0">Sambungan Threads</h2>
+      <p class="muted" id="settingsInfo"></p>
+      <label for="token">Access token (long-lived)</label>
+      <input id="token" type="password" autocomplete="off" placeholder="Tampal token dari Meta Developer">
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="btnSaveToken">Simpan &amp; sahkan</button>
+        <button class="btn ghost" id="btnRefresh">Refresh token sekarang</button>
+      </div>
+      <p class="muted">Token disimpan dalam Script Properties di server, bukan dalam Sheet atau browser. Ia di-refresh automatik setiap Isnin jam 3 pagi.</p>
+    </div>
+  </section>
+</main>
+
+<dialog id="editor">
+  <h2 style="margin-top:0" id="edTitle">Content</h2>
+  <input type="hidden" id="edId">
+  <label for="edTopik">Topik</label><input id="edTopik" maxlength="200">
+  <label for="edSiri">Siri (cth: Perbuatan dalam Solat 3/8)</label><input id="edSiri" maxlength="100">
+  <label for="edTeks">Teks post</label><textarea id="edTeks"></textarea>
+  <div class="count" id="edCount">0 / 500</div>
+  <label for="edImg">Image URL (https, mesti boleh diakses awam)</label><input id="edImg">
+  <label for="edStatus">Status</label><select id="edStatus"></select>
+  <label for="edJadual">Jadual (untuk Fasa 2: auto-post)</label><input id="edJadual" type="datetime-local">
+  <label for="edCatatan">Catatan</label><input id="edCatatan" maxlength="500">
+  <div class="row" style="margin-top:16px; justify-content:flex-end">
+    <button class="btn ghost" id="edCancel">Batal</button>
+    <button class="btn" id="edSave">Simpan</button>
+  </div>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+const STATUSES = ['Draf', 'Sedia', 'Dijadual', 'Diposting', 'Gagal'];
+let CONTENT = [];
+
+/* ---------- util ---------- */
+const $ = id => document.getElementById(id);
+function el(tag, props, children) {
+  const n = document.createElement(tag);
+  Object.assign(n, props || {});
+  (children || []).forEach(c => n.append(c));
+  return n;
+}
+function fmtDate(iso, withTime) {
+  if (!iso) return '';
+  const d = new Date(iso); if (isNaN(d)) return '';
+  const p = n => String(n).padStart(2, '0');
+  let s = p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear();
+  if (withTime) s += ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  return s;
+}
+function toLocalInput(iso) {
+  if (!iso) return '';
+  const d = new Date(iso); if (isNaN(d)) return '';
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+const nf = n => Number(n || 0).toLocaleString('ms-MY');
+const pct = n => (Number(n || 0) * 100).toFixed(1) + '%';
+function toast(msg, isErr) {
+  const t = $('toast'); t.textContent = msg; t.className = isErr ? 'err' : ''; t.style.display = 'block';
+  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', isErr ? 7000 : 3500);
+}
+/** Panggil function server; kunci butang semasa tunggu. */
+function call(fn, args, btn) {
+  return new Promise((resolve, reject) => {
+    if (btn) btn.disabled = true;
+    google.script.run
+      .withSuccessHandler(r => { if (btn) btn.disabled = false; resolve(r); })
+      .withFailureHandler(e => { if (btn) btn.disabled = false; toast(e.message || String(e), true); reject(e); })[fn](...(args || []));
+  });
+}
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === b.dataset.tab));
+  if (b.dataset.tab === 'content') loadContent();
+});
+
+/* ---------- status ---------- */
+function renderStatus(s) {
+  $('conn').textContent = s.connected ? 'Disambung: @' + s.username : 'Belum disambung';
+  $('lastSync').textContent = s.lastSync ? 'Sync terakhir: ' + fmtDate(s.lastSync, true) : 'Belum pernah sync';
+  $('settingsInfo').textContent = s.connected
+    ? 'Akaun @' + s.username + ' disambung. Token disimpan pada ' + fmtDate(s.tokenSavedAt, true) + '.'
+    : 'Belum ada token. Ikut langkah dalam README untuk dapatkan token.';
+}
+
+/* ---------- dashboard ---------- */
+function renderDash(d) {
+  renderStatus(d.status);
+  const kpis = [
+    ['Followers', d.followers == null ? '—' : nf(d.followers)],
+    ['Post (disync)', nf(d.totalPosts)],
+    ['Jumlah views', nf(d.totalViews)],
+    ['Purata views/post', nf(d.avgViews)],
+    ['Engagement rate', pct(d.engRate)]
+  ];
+  $('kpis').replaceChildren(...kpis.map(k =>
+    el('div', { className: 'card kpi' }, [el('div', { className: 'v', textContent: k[1] }), el('div', { className: 'l', textContent: k[0] })])));
+
+  const max = Math.max(1, ...Object.values(d.contentByStatus));
+  $('statusBars').replaceChildren(...STATUSES.map(s => {
+    const n = d.contentByStatus[s] || 0;
+    const bar = el('span', { className: 'b' }); bar.style.width = (n / max * 200) + 'px';
+    const lab = el('span', { textContent: s }); lab.style.width = '80px';
+    return el('div', {}, [lab, bar, el('span', { textContent: String(n) })]);
+  }));
+
+  $('topBody').replaceChildren(...(d.top.length ? d.top.map(p => {
+    const link = p.permalink ? el('a', { href: p.permalink, target: '_blank', rel: 'noopener', textContent: p.teks || '(tiada teks)' })
+                             : el('span', { textContent: p.teks });
+    return el('tr', {}, [
+      el('td', { textContent: fmtDate(p.tarikh) }), el('td', {}, [link]),
+      el('td', { className: 'num', textContent: nf(p.views) }), el('td', { className: 'num', textContent: nf(p.likes) }),
+      el('td', { className: 'num', textContent: nf(p.replies) }), el('td', { className: 'num', textContent: nf(p.reposts) }),
+      el('td', { className: 'num', textContent: pct(p.eng) })
+    ]);
+  }) : [el('tr', {}, [el('td', { colSpan: 7, className: 'muted', textContent: 'Belum ada data. Tekan "Sync post & insights".' })])]));
+}
+$('btnSync').onclick = e => call('syncPosts', [], e.target).then(d => { renderDash(d); toast('Sync siap'); });
+
+/* ---------- content bank ---------- */
+STATUSES.forEach(s => {
+  $('filterStatus').append(el('option', { value: s, textContent: s }));
+  $('edStatus').append(el('option', { value: s, textContent: s }));
+});
+$('filterStatus').onchange = renderContent;
+
+function loadContent() { return call('listContent').then(c => { CONTENT = c; renderContent(); }); }
+
+function renderContent() {
+  const f = $('filterStatus').value;
+  const rows = CONTENT.filter(c => !f || c.Status === f);
+  $('contentBody').replaceChildren(...(rows.length ? rows.map(c => {
+    const actions = el('div', { className: 'row' });
+    actions.style.margin = '0';
+    actions.append(el('button', { className: 'btn ghost sm', textContent: 'Edit', onclick: () => openEditor(c) }));
+    if (c.Status !== 'Diposting') {
+      actions.append(el('button', { className: 'btn sm', textContent: 'Post sekarang', onclick: ev => postNow(c, ev.target) }));
+    } else if (c.Permalink) {
+      actions.append(el('a', { href: c.Permalink, target: '_blank', rel: 'noopener', textContent: 'Lihat' }));
+    }
+    const topik = el('td', {}, [el('div', { textContent: c.Topik }), el('div', { className: 'muted', textContent: c.Siri })]);
+    const teks = el('td', {}, [el('div', { textContent: String(c.Teks || '').slice(0, 120) || '—' })]);
+    if (c.Catatan) teks.append(el('div', { className: 'muted', textContent: c.Catatan }));
+    return el('tr', {}, [
+      el('td', {}, [el('span', { className: 'pill ' + c.Status, textContent: c.Status })]),
+      topik, teks,
+      el('td', { textContent: fmtDate(c.Jadual, true) || '—' }),
+      el('td', {}, [actions])
+    ]);
+  }) : [el('tr', {}, [el('td', { colSpan: 5, className: 'muted', textContent: 'Tiada content.' })])]));
+}
+
+function openEditor(c) {
+  c = c || {};
+  $('edTitle').textContent = c.ID ? 'Edit content' : 'Content baru';
+  $('edId').value = c.ID || '';
+  $('edTopik').value = c.Topik || '';
+  $('edSiri').value = c.Siri || '';
+  $('edTeks').value = c.Teks || '';
+  $('edImg').value = c.ImageURL || '';
+  $('edStatus').value = c.Status || 'Draf';
+  $('edJadual').value = toLocalInput(c.Jadual);
+  $('edCatatan').value = c.Catatan || '';
+  updateCount();
+  $('editor').showModal();
+}
+function updateCount() {
+  const n = $('edTeks').value.length;
+  $('edCount').textContent = n + ' / 500';
+  $('edCount').classList.toggle('over', n > 500);
+}
+$('edTeks').oninput = updateCount;
+$('btnNew').onclick = () => openEditor();
+$('edCancel').onclick = () => $('editor').close();
+$('edSave').onclick = e => {
+  if ($('edTeks').value.length > 500) return toast('Teks melebihi 500 aksara', true);
+  const item = {
+    ID: $('edId').value, Topik: $('edTopik').value, Siri: $('edSiri').value, Teks: $('edTeks').value,
+    ImageURL: $('edImg').value, Status: $('edStatus').value,
+    Jadual: $('edJadual').value ? new Date($('edJadual').value).toISOString() : '',
+    Catatan: $('edCatatan').value
+  };
+  call('saveContent', [item], e.target).then(c => { CONTENT = c; renderContent(); $('editor').close(); toast('Disimpan'); });
+};
+function postNow(c, btn) {
+  if (!c.Teks && !c.ImageURL) return toast('Teks masih kosong', true);
+  if (!confirm('Post ke Threads sekarang?\n\n' + (c.Teks || '').slice(0, 200))) return;
+  btn.textContent = 'Memposting…';
+  call('postNow', [c.ID], btn).then(list => { CONTENT = list; renderContent(); toast('Berjaya diposting'); })
+    .catch(() => loadContent());
+}
+
+/* ---------- tetapan ---------- */
+$('btnSaveToken').onclick = e => {
+  const t = $('token').value.trim();
+  if (!t) return toast('Tampal token dahulu', true);
+  call('saveToken', [t], e.target).then(s => { $('token').value = ''; renderStatus(s); toast('Disambung sebagai @' + s.username); });
+};
+$('btnRefresh').onclick = e => call('refreshToken', [], e.target).then(s => { renderStatus(s); toast('Token di-refresh'); });
+
+/* ---------- init ---------- */
+call('getDashboard').then(renderDash).catch(() => call('getStatus').then(renderStatus));
+</script>
+</body>
+</html>
