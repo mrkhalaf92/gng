@@ -67,7 +67,8 @@ function seedContent_() {
   if (sh.getLastRow() > 1) return; // dah ada data, jangan tindih
   const h = SHEETS.CONTENT.headers;
   const now = new Date();
-  const rows = [];
+  // Kempen ebook dahulu (susunan baris = susunan auto-jadual), kemudian pelan 14 hari.
+  const rows = kempenRows_(h, now);
   for (let d = 0; d < 14; d++) {
     rows.push(makeSeedRow_(h, now, 'Pagi', SEED_PAGI[d][0], 'Doa & Zikir Selepas Solat', SEED_PAGI[d][1], ''));
     rows.push(makeSeedRow_(h, now, 'Tengahari', SEED_TENGAHARI[d][0], 'Kesalahan Lazim ' + (d + 1) + '/14',

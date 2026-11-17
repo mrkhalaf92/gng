@@ -129,6 +129,10 @@
       <select id="filterSlot" style="width:auto">
         <option value="">Semua slot</option>
       </select>
+      <select id="filterSiri" style="width:auto">
+        <option value="">Semua siri</option>
+      </select>
+      <button class="btn ghost" id="btnReady">Jadikan "Sedia" (Draf bertulis yang ditapis)</button>
     </div>
     <div class="tbl-wrap">
       <table>
@@ -286,12 +290,28 @@ SLOT_NAMES.forEach(n => {
 $('edSlot').prepend(el('option', { value: '', textContent: '(tiada slot)' }));
 $('filterSlot').onchange = renderContent;
 
-function loadContent() { return call('listContent').then(c => { CONTENT = c; renderContent(); }); }
+function loadContent() { return call('listContent').then(c => { CONTENT = c; fillSiri(); renderContent(); }); }
+function siriBase(s) { return String(s || '').split(' · ')[0]; }
+function fillSiri() {
+  const cur = $('filterSiri').value;
+  const list = [...new Set(CONTENT.map(c => siriBase(c.Siri)).filter(Boolean))];
+  $('filterSiri').replaceChildren(el('option', { value: '', textContent: 'Semua siri' }), ...list.map(s => el('option', { value: s, textContent: s })));
+  $('filterSiri').value = list.includes(cur) ? cur : '';
+}
+$('filterSiri').onchange = renderContent;
+function filtered() {
+  const f = $('filterStatus').value, fs = $('filterSlot').value, fr = $('filterSiri').value;
+  return CONTENT.filter(c => (!f || c.Status === f) && (!fs || c.Slot === fs) && (!fr || siriBase(c.Siri) === fr));
+}
+$('btnReady').onclick = e => {
+  const ids = filtered().filter(c => c.Status === 'Draf' && String(c.Teks || '').trim()).map(c => c.ID);
+  if (!ids.length) return toast('Tiada Draf bertulis dalam tapisan ini', true);
+  if (!confirm(ids.length + ' item akan ditukar ke "Sedia" dan boleh dijadual automatik. Dah semak semua?')) return;
+  call('markReady', [ids], e.target).then(c => { CONTENT = c; renderContent(); toast(ids.length + ' item kini Sedia'); });
+};
 
 function renderContent() {
-  const f = $('filterStatus').value;
-  const fs = $('filterSlot').value;
-  const rows = CONTENT.filter(c => (!f || c.Status === f) && (!fs || c.Slot === fs));
+  const rows = filtered();
   $('contentBody').replaceChildren(...(rows.length ? rows.map(c => {
     const actions = el('div', { className: 'row' });
     actions.style.margin = '0';

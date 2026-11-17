@@ -19,11 +19,11 @@ Webapp peribadi (Google Apps Script + Google Sheets) untuk pantau, jadual dan po
 1. Buat Google Sheet baru, contoh nama `Threads Studio`.
 2. Menu **Extensions → Apps Script**.
 3. Padam isi `Code.gs`, tampal isi fail `Code.gs` dari folder ini.
-4. **+ → Script**, nama `Seed`, tampal isi `Seed.gs`.
+4. **+ → Script**, nama `Seed`, tampal isi `Seed.gs`. Ulang untuk `Kempen`, tampal isi `Kempen.gs`.
 5. **+ → HTML**, nama `Index`, tampal isi `Index.html`.
 6. **Project Settings → tick "Show appsscript.json"**, tampal isi `appsscript.json`.
 7. Pilih function `setup` di toolbar → **Run** → benarkan permission.
-   Ini akan cipta tab `Content`, `Posts`, `Log`, isi 42 draf (pelan 14 hari), dan pasang 3 trigger: refresh token mingguan, penjadual setiap 10 minit, auto-isi slot setiap malam.
+   Ini akan cipta tab `Content`, `Posts`, `Log`, isi 72 draf (30 kapsyen siap dari kempen ebook + 42 brief pelan 14 hari), dan pasang 3 trigger: refresh token mingguan, penjadual setiap 10 minit, auto-isi slot setiap malam.
 8. **Deploy → New deployment → Web app**
    - Execute as: **Me**
    - Who has access: **Only myself**
@@ -46,6 +46,11 @@ Webapp peribadi (Google Apps Script + Google Sheets) untuk pantau, jadual dan po
 
 Threads perlukan gambar dari URL awam (https). Draf Tengahari "Kesalahan Lazim 1–8" guna link `raw.githubusercontent.com` ke folder `infografik-panel`.
 Ini hanya berfungsi kalau repo **public** dan fail dah ada di branch `main`. Kalau repo private, upload gambar ke tempat awam lain (contoh Google Drive tak sesuai sebab link bukan direct image).
+
+## Kempen ebook "Dah Lama Solat, Pernah Semak?"
+
+30 kapsyen siap ditulis dari ebook (`Kempen.gs`), 10 hari menuju Bengkel Usolli 28/11/2026. Baca semua di `content/kempen-semak-solat.md`.
+Dalam Content Bank: tapis siri **Semak Solat** → semak → tekan **Jadikan "Sedia"** → tab Jadual → **Isi slot kosong**.
 
 ## Cara guna harian (Fasa 2)
 

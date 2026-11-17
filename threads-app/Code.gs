@@ -183,6 +183,29 @@ function saveContent(item) {
   return listContent();
 }
 
+/** Tukar item Draf yang dah ada teks ke "Sedia". */
+function markReady(ids) {
+  if (!Array.isArray(ids) || !ids.length) throw new Error('Tiada item dipilih');
+  const sh = sheet_(SHEETS.CONTENT);
+  const h = SHEETS.CONTENT.headers;
+  const want = {};
+  ids.forEach(id => want[id] = true);
+  const last = sh.getLastRow();
+  if (last < 2) return listContent();
+  const data = sh.getRange(2, 1, last - 1, h.length).getValues();
+  const iID = h.indexOf('ID'), iS = h.indexOf('Status'), iT = h.indexOf('Teks'), iC = h.indexOf('Catatan');
+  let n = 0;
+  data.forEach((r, i) => {
+    if (want[r[iID]] && r[iS] === 'Draf' && String(r[iT]).trim()) {
+      sh.getRange(i + 2, iS + 1).setValue('Sedia');
+      sh.getRange(i + 2, iC + 1).setValue('');
+      n++;
+    }
+  });
+  log_('markReady', 'OK', n + ' item');
+  return listContent();
+}
+
 function deleteContent(id) {
   const sh = sheet_(SHEETS.CONTENT);
   const r = findRow_(sh, id);
