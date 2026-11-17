@@ -23,7 +23,7 @@ Webapp peribadi (Google Apps Script + Google Sheets) untuk pantau, jadual dan po
 5. **+ → HTML**, nama `Index`, tampal isi `Index.html`.
 6. **Project Settings → tick "Show appsscript.json"**, tampal isi `appsscript.json`.
 7. Pilih function `setup` di toolbar → **Run** → benarkan permission.
-   Ini akan cipta tab `Content`, `Posts`, `Log`, isi 72 draf (30 kapsyen siap dari kempen ebook + 42 brief pelan 14 hari), dan pasang 3 trigger: refresh token mingguan, penjadual setiap 10 minit, auto-isi slot setiap malam.
+   Ini akan cipta tab `Content`, `Posts`, `Log`, isi 96 draf (54 kapsyen siap dari kempen ebook + 42 brief pelan 14 hari), dan pasang 3 trigger: refresh token mingguan, penjadual setiap 10 minit, auto-isi slot setiap malam.
 8. **Deploy → New deployment → Web app**
    - Execute as: **Me**
    - Who has access: **Only myself**
@@ -49,7 +49,7 @@ Ini hanya berfungsi kalau repo **public** dan fail dah ada di branch `main`. Kal
 
 ## Kempen ebook "Dah Lama Solat, Pernah Semak?"
 
-30 kapsyen siap ditulis dari ebook (`Kempen.gs`), 10 hari menuju Bengkel Usolli 28/11/2026. Baca semua di `content/kempen-semak-solat.md`.
+54 kapsyen siap ditulis dari ebook (`Kempen.gs`): Siri 1 (10 hari, menuju Bengkel Usolli 28/11/2026) + Siri 2 Lanjutan (8 hari, evergreen). Baca semua di `content/kempen-semak-solat.md`.
 Dalam Content Bank: tapis siri **Semak Solat** → semak → tekan **Jadikan "Sedia"** → tab Jadual → **Isi slot kosong**.
 
 ## Cara guna harian (Fasa 2)
